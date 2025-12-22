@@ -281,6 +281,12 @@ elif menu == "Student View":
                         h1, h2, h3, h4, h5, h6 {display: none !important;}
                         h2.print-title {display: block !important;}
 
+                        /* Page Setup */
+                        @page {
+                            size: A4;
+                            margin: 15mm;
+                        }
+
                         table {
                             display: table !important;
                             width: 100% !important;
@@ -353,10 +359,10 @@ elif menu == "Student View":
                     # Wrap with Page Break
                     # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
                     full_html += f"""
-<div class="print-page" style="page-break-after: always; padding-top: 20px; box-sizing: border-box;">
+<div class="print-page" style="page-break-after: always; box-sizing: border-box;">
 {t_html}
 </div>
-<br><hr class="no-print"><br>
+<div class="no-print" style="height: 30px; border-bottom: 1px dashed #ccc; margin-bottom: 30px;"></div>
 """
                     prog_bar.progress((idx + 1) / len(targets))
                     
@@ -377,6 +383,12 @@ elif menu == "Student View":
                     h1, h2, h3, h4, h5, h6 {display: none !important;}
                     h2.print-title {display: block !important;}
                     
+                    /* Page Setup */
+                    @page {
+                        size: A4;
+                        margin: 15mm;
+                    }
+                    
                     table {
                         display: table !important;
                         width: 100% !important;
@@ -388,20 +400,25 @@ elif menu == "Student View":
                         color: black !important;
                         -webkit-print-color-adjust: exact; 
                     }
-                    body, .stApp { background-color: white !important; }
+                    html, body, .stApp { 
+                        background-color: white !important; 
+                        height: auto !important;
+                    }
                     
                     /* Page Break Control */
                     .print-page {
                         page-break-after: always;
                         break-after: page;
                         display: block;
-                        height: 98vh; /* Ensure full page usage */
+                        /* height: 98vh; REMOVED to prevent overflow */
                         position: relative;
+                        padding-top: 0px; 
                     }
                     
                     /* Remove default Streamlit padding for print */
                     .block-container {
                         padding: 0 !important;
+                        max-width: none !important;
                     }
                 }
                 </style>
