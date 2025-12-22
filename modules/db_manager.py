@@ -15,7 +15,9 @@ class DBManager:
         self.credentials_path = credentials_path
         self.client = None
         self.spreadsheet = None
-        self.spreadsheet_name = "Timetable_System_DB" # Default spreadsheet name
+        # User provided specific URL to avoid Quota issues with new creations
+        self.spreadsheet_url = "https://docs.google.com/spreadsheets/d/1VWAAy-5JJlX0kyRNQg4nXkTtkCeab-YLMISUnhCHkZQ/edit?usp=sharing"
+        self.spreadsheet_name = "Timetable_System_DB" # Kept for reference
         self.is_local = False # Flag for local fallback
 
     def _get_service_account_email(self):
@@ -60,7 +62,7 @@ class DBManager:
             return False
 
     def get_spreadsheet(self):
-        """Opens the spreadsheet, creating it if it doesn't exist."""
+        """Opens the spreadsheet using URL provided by user."""
         if self.is_local:
             return None
 
@@ -72,45 +74,43 @@ class DBManager:
         if self.spreadsheet:
             return self.spreadsheet
 
+        # Try opening by URL first (User Request)
         try:
-            self.spreadsheet = self.client.open(self.spreadsheet_name)
-        except gspread.SpreadsheetNotFound:
-            try:
-                self.spreadsheet = self.client.create(self.spreadsheet_name)
-                st.warning(f"Created new spreadsheet: {self.spreadsheet_name}. Please check your Google Drive.")
-            except Exception as e:
-                # Check for Quota or Permission errors during creation
-                if "quota" in str(e).lower() or "403" in str(e):
-                    sa_email = self._get_service_account_email()
-                    st.error(
-                        f"""
-                        ⚠️ **Google Drive 저장 용량 부족 (Quota Exceeded)**
-                        
-                        서비스 계정의 저장 공간이 부족하여 시트를 생성할 수 없습니다.
-                        
-                        **[해결 방법]**
-                        1. 본인의 **개인 구글 드라이브**에 `{self.spreadsheet_name}` 라는 이름의 새 스프레드시트를 만드세요.
-                        2. 해당 시트의 '공유' 버튼을 누르고 아래 이메일을 **편집자(Editor)**로 추가하세요:
-                        
-                        `{sa_email}`
-                        
-                        3. 공유 후 다시 시도하세요.
-                        """
-                    )
-                    st.warning("⚠️ 임시로 **로컬 저장소 모드**로 전환합니다.")
-                    self.is_local = True
-                    return None
-                st.error(f"Failed to open or create spreadsheet: {e}")
-                return None
+            self.spreadsheet = self.client.open_by_url(self.spreadsheet_url)
+            return self.spreadsheet
         except Exception as e:
-             if "quota" in str(e).lower() or "403" in str(e):
-                st.warning("⚠️ Google Drive 용량 초과(Quota Exceeded)로 인해 **로컬 저장소 모드**로 전환합니다.")
+            # Check for Permission (403) or generic errors
+            err_msg = str(e)
+            if "403" in err_msg or "permission" in err_msg.lower() or "quota" in err_msg.lower():
+                sa_email = self._get_service_account_email()
+                st.error(
+                    f"""
+                    ⚠️ **Google Sheets 접근 권한 오류**
+                    
+                    서비스 계정이 지정된 스프레드시트에 접근할 수 없거나 할당량(Quota) 문제가 발생했습니다.
+                    
+                    **[해결 방법]**
+                    1. 아래 스프레드시트 링크로 이동하세요:
+                    [스프레드시트 바로가기]({self.spreadsheet_url})
+                    
+                    2. 우측 상단 '공유' 버튼을 누르고 아래 이메일을 **편집자(Editor)**로 추가하세요:
+                    
+                    `{sa_email}`
+                    
+                    3. 공유 후 다시 '저장' 버튼을 눌러보세요.
+                    """
+                )
+                with st.expander("상세 오류 메시지 (Debug Info)"):
+                    st.write(err_msg)
+                
+                st.warning("⚠️ 권한 문제로 인해 **로컬 저장소 모드**로 전환합니다.")
                 self.is_local = True
                 return None
-             st.error(f"Connection Error: {e}")
-             return None
-        
-        return self.spreadsheet
+            
+            # Other errors (e.g. Not Found)
+            st.error(f"Failed to open spreadsheet by URL: {e}")
+            self.is_local = True
+            return None
 
     def save_dataframe(self, sheet_name, df):
         """Saves a pandas DataFrame to a specific worksheet or local CSV."""
