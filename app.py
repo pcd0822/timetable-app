@@ -257,8 +257,8 @@ elif menu == "Student View":
                     # Transform to Grid (Now returns HTML string with Header)
                     timetable_html = format_student_timetable_grid(schedule_df, student_info={'id': sid_input, 'name': s_name})
                     
-                    # Display HTML Table
-                    st.markdown(timetable_html, unsafe_allow_html=True)
+                    # Display HTML Table -> Removed duplicate call
+                    # st.markdown(timetable_html, unsafe_allow_html=True)
                     
                     # Improved Print Button using Components
                     import streamlit.components.v1 as components
@@ -288,6 +288,15 @@ elif menu == "Student View":
                             display: none !important;
                             content: none !important;
                         }
+                        
+                        /* Hide Print Button Container Space */
+                        .element-container:has(iframe), 
+                        .stVerticalBlock > div:has(iframe) {
+                            display: none !important;
+                            height: 0 !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }
 
                         /* Hide main titles BUT show our custom print title */
                         /* Hide main titles BUT show our custom print title */
@@ -311,15 +320,37 @@ elif menu == "Student View":
                             color: black !important;
                             -webkit-print-color-adjust: exact; 
                         }
-                        body, .stApp { background-color: white !important; }
+                        
+                        html, body, .stApp { 
+                            background-color: white !important; 
+                            height: auto !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            overflow: visible !important;
+                        }
                         
                         /* Layout fixes */
+                        .block-container, 
+                        [data-testid="stAppViewContainer"], 
+                        .main, 
+                        .stApp { 
+                            padding: 0 !important; 
+                            margin: 0 !important;
+                            padding-top: 0 !important;
+                            margin-top: 0 !important;
+                            position: static !important;
+                            transform: none !important;
+                            overflow: visible !important;
+                        }
+                        
                         /* Absolute positioning to bypass hidden element spacers */
                         #print-area {
                             position: absolute;
                             top: 0;
                             left: 0;
                             width: 100%;
+                            margin: 0;
+                            padding: 0;
                             z-index: 9999;
                         }
                     }
@@ -417,6 +448,15 @@ elif menu == "Student View":
                     header:before, header:after, .stApp > header:before, .stApp > header:after {
                         display: none !important;
                         content: none !important;
+                    }
+                    
+                    /* Hide Print Button Container Space */
+                    .element-container:has(iframe), 
+                    .stVerticalBlock > div:has(iframe) {
+                        display: none !important;
+                        height: 0 !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
                     }
 
                     /* Hide main titles unless it is our custom print title */
