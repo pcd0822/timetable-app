@@ -445,19 +445,24 @@ elif menu == "Student View":
                         height: auto !important;
                         margin: 0 !important;
                         padding: 0 !important;
+                        overflow: visible !important;
                     }
                     
-                    /* Aggressively remove Streamlit container padding */
+                    /* Aggressively remove Streamlit container padding AND Reset Positioning */
                     .block-container, 
                     [data-testid="stAppViewContainer"], 
                     [data-testid="stHeader"], 
                     [data-testid="stToolbar"],
-                    .main {
+                    .main,
+                    .stApp {
                         padding: 0 !important;
                         margin: 0 !important;
                         padding-top: 0 !important;
                         margin-top: 0 !important;
                         max-width: none !important;
+                        position: static !important; /* Force static so absolute child goes to root */
+                        transform: none !important;
+                        overflow: visible !important;
                     }
 
                     /* Page Break Control */
@@ -476,6 +481,8 @@ elif menu == "Student View":
                         top: 0;
                         left: 0;
                         width: 100%;
+                        margin: 0;
+                        padding: 0;
                         z-index: 9999;
                     }
                 }
