@@ -389,39 +389,70 @@ def format_student_timetable_grid(schedule_df):
         return pd.DataFrame()
 
     # Create a composite text for the cell
-    # "Subject\n(Teacher / Room)" or just "Subject" if others missing
+    # Use HTML breaks <br>
     def format_cell(row):
-        txt = f"{row['과목']}"
-        details = []
+        # 1. Subject (Bold)
+        txt = f"<b>{row['과목']}</b>"
+        
+        # 2. Details (Smaller font)
+        details = ""
         if row['담당교사'] and row['담당교사'] != "미배정":
-            details.append(row['담당교사'])
-        if row['장소']:
-            details.append(str(row['장소']))
+            details += f"<br><span style='font-size:0.9em; color:#555;'>T: {row['담당교사']}</span>"
             
-        if details:
-            txt += f"\n({' '.join(details)})"
-        return txt
+        if row['장소']:
+            details += f"<br><span style='font-size:0.9em; color:#555;'>R: {str(row['장소'])}</span>"
+        
+        return txt + details
 
     schedule_df['Cell'] = schedule_df.apply(format_cell, axis=1)
 
     # Pivot
-    # Assuming '요일' and '교시' columns exist.
-    # We need to map '교시' to just integer if it's not already
-    # logic.generate_student_timetable return '교시' as integer if derived from 'PeriodKey'? 
-    # No, it returns '교시' from original df which is integer. Good.
+    # Ensure '교시' is int for correct reindexing
+    schedule_df['교시'] = schedule_df['교시'].astype(int)
     
     pivot_df = schedule_df.pivot_table(
         index='교시', 
         columns='요일', 
         values='Cell', 
-        aggfunc=lambda x: '\n\n'.join(x) # Handle conflicts if any
+        aggfunc=lambda x: '<br><hr style="margin:2px 0;"><br>'.join(x) # Separator for conflicts
     )
     
-    # Reindex to ensure fixed structure (1~7 perious, Mon~Fri)
+    # Reindex
     days = ["월", "화", "수", "목", "금"]
     periods = range(1, 8)
     
     pivot_df = pivot_df.reindex(index=periods, columns=days)
-    pivot_df = pivot_df.fillna("") # Empty cells
+    pivot_df = pivot_df.fillna("") 
     
-    return pivot_df
+    # Generate HTML Table
+    html = """
+    <table style="width:100%; border-collapse: collapse; text-align: center; border: 1px solid #ddd; color: black;">
+      <thead>
+        <tr style="background-color: #f2f2f2; border: 1px solid #ddd;">
+          <th style="padding: 10px; border: 1px solid #ddd; width: 10%;">교시</th>
+          <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">월</th>
+          <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">화</th>
+          <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">수</th>
+          <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">목</th>
+          <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">금</th>
+        </tr>
+      </thead>
+      <tbody>
+    """
+    
+    for p in periods:
+        html += f"<tr><td style='border: 1px solid #ddd; font-weight:bold; background-color:#fafafa;'>{p}교시</td>"
+        for d in days:
+            try:
+                cell_content = pivot_df.loc[p, d]
+                if pd.isna(cell_content): cell_content = ""
+            except KeyError:
+                cell_content = ""
+            
+            # Make cell look clickable/interactive or just nice
+            html += f"<td style='padding: 8px; border: 1px solid #ddd; vertical-align: middle; height: 80px;'>{cell_content}</td>"
+        html += "</tr>"
+        
+    html += "</tbody></table>"
+    
+    return html
