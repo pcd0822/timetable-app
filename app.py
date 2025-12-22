@@ -390,36 +390,51 @@ elif menu == "Student View":
                     body * {
                         visibility: hidden;
                     }
+                    
+                    /* IMPORTANT: Remove relative positioning from ancestors so absolute works relative to Body */
+                    .stApp, [data-testid="stAppViewContainer"], .main, .block-container {
+                        position: static !important;
+                        transform: none !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: visible !important;
+                    }
+
                     #print-area, #print-area * {
                         visibility: visible;
                     }
+                    
                     #print-area {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        width: 100%;
-                        z-index: 9999;
-                        margin: 0;
-                        padding: 0;
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        z-index: 99999;
                     }
 
                     /* Page Setup */
                     @page {
                         size: A4;
-                        margin: 15mm;
+                        margin: 10mm; /* Slightly wider print area */
                     }
                     
                     table {
                         display: table !important;
                         width: 100% !important;
                         border-collapse: collapse !important;
+                        /* Ensure table doesn't get squashed */
+                        table-layout: fixed; 
                     }
                     th, td {
                         border: 1px solid #000 !important;
                         padding: 8px !important;
                         color: black !important;
+                        word-wrap: break-word;
                         -webkit-print-color-adjust: exact; 
                     }
+                    
                     html, body {
                         height: auto !important;
                         background-color: white !important;
@@ -436,6 +451,7 @@ elif menu == "Student View":
                         position: relative;
                         padding-top: 0px; 
                         margin-top: 0px;
+                        width: 100%; /* Ensure full width used */
                     }
                 }
                 </style>
