@@ -27,8 +27,10 @@ if menu == "Data Upload":
         if error:
             st.error(error)
         else:
-            st.success("파일 파싱 성공!")
-            st.dataframe(df.head())
+            st.success(f"파일 파싱 성공! 총 {len(df)}명의 학생 데이터가 로드되었습니다.")
+            
+            with st.expander("데이터 미리보기 (전체 데이터 확인)", expanded=True):
+                st.dataframe(df) # Show full dataframe (Streamlit handles pagination)
             
             if st.button("DB에 저장하기"):
                 # Save to Google Sheets
@@ -45,7 +47,9 @@ if menu == "Data Upload":
                 if success:
                     st.success("데이터베이스(Google Sheets - Students)에 저장되었습니다.")
                 else:
-                    st.error("저장 실패. credentials.json을 확인하세요.")
+                    # Generic error fallback only if db_manager didn't already show a detailed error
+                    # (In our case, db_manager handles the details, but a generic "Please check above" is helpful)
+                    st.error("저장 실패. 위의 오류 메시지를 확인하세요.")
 
 elif menu == "Teacher Assignment":
     st.header("교사 및 과목 배정")
