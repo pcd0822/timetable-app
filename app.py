@@ -277,9 +277,16 @@ elif menu == "Student View":
                     iframe {display: none !important;} /* Hide the print button iframe itself */
                     
                     /* Ensure Table is visible and centered */
-                    .stTable {
-                        display: block !important;
+                    table {
+                        display: table !important;
                         width: 100% !important;
+                        border-collapse: collapse !important;
+                    }
+                    th, td {
+                        border: 1px solid #000 !important;
+                        padding: 8px !important;
+                        color: black !important;
+                        -webkit-print-color-adjust: exact; 
                     }
                     
                     /* Force white background */
