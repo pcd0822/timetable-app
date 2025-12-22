@@ -411,7 +411,7 @@ elif menu == "Student View":
                 
                 # Print Button
                 import streamlit.components.v1 as components
-                components.html("""
+                components.html(f"""
                 <div style="text-align: center;">
                     <button onclick="window.parent.print()" style="background-color: #2196F3; border: none; color: white; padding: 15px 32px; text-align: center; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; font-weight: bold;">🏫 일괄 인쇄하기 ({len(targets)}명)</button>
                 </div>
