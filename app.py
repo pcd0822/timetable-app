@@ -531,9 +531,14 @@ elif menu == "Student View":
 
                     /* Formatting for print area */
                     #print-area {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
                         display: block;
                         width: 100%;
                         z-index: 9999;
+                        margin: 0;
+                        padding: 0;
                     }
                 }
                 </style>
