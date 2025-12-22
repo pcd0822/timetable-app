@@ -349,15 +349,15 @@ elif menu == "Student View":
                         /* Adjusted positioning */
                         /* Adjusted positioning for Centering */
                         #print-area {
-                            /* Flexbox Centering */
+                            /* Flexbox Alignment */
                             position: absolute;
                             top: 0;
                             left: 0;
                             display: flex !important;
                             flex-direction: column;
-                            justify-content: center;
-                            align-items: center;
-                            height: 98vh; /* Center vertically */
+                            justify-content: flex-start; /* Align to Top */
+                            align-items: center; /* Center horizontally */
+                            height: 98vh; 
                             width: 100%;
                             z-index: 9999;
                             margin: 0;
@@ -515,15 +515,15 @@ elif menu == "Student View":
                         /* Removed forced static position */
                     }
 
-                    /* Page Break Control & Centering */
+                    /* Page Break Control & Alignment */
                     .print-page {
                         page-break-after: always;
                         break-after: page;
                         display: flex !important;
                         flex-direction: column;
-                        justify-content: center;
-                        align-items: center;
-                        height: 98vh; /* Center vertically on the page */
+                        justify-content: flex-start; /* Align to Top */
+                        align-items: center; /* Center horizontally */
+                        height: 98vh; 
                         padding-top: 0px; 
                         margin-top: 0px;
                         box-sizing: border-box;
