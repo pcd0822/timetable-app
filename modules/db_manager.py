@@ -143,7 +143,9 @@ class DBManager:
              return False
         
         try:
-            worksheet.update([df.columns.values.tolist()] + df.values.tolist())
+            # Sanitize DataFrame: Replace NaN and Infinity with empty strings for JSON compatibility
+            df_cleaned = df.fillna("").replace([float('inf'), float('-inf')], "")
+            worksheet.update([df_cleaned.columns.values.tolist()] + df_cleaned.values.tolist())
             return True
         except Exception as e:
             if "quota" in str(e).lower() or "403" in str(e):
