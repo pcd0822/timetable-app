@@ -14,6 +14,14 @@ st.sidebar.title("Navigation")
 menu = st.sidebar.radio("Go to", 
     ["Data Upload", "Teacher Assignment", "Timetable Setup", "Room Assignment", "Student View", "Teacher View"])
 
+st.sidebar.divider()
+if st.sidebar.button("🔄 데이터 새로고침 (Refresh)"):
+    # Clear internal cache if exists
+    if hasattr(st.session_state.db, 'cache'):
+        st.session_state.db.cache = {}
+    st.cache_data.clear()
+    st.rerun()
+
 # Main Content Placeholder
 st.title("최소 성취수준 보장지도 시간표 관리")
 
