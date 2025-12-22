@@ -456,3 +456,48 @@ def format_student_timetable_grid(schedule_df):
     html += "</tbody></table>"
     
     return html
+
+
+def get_students_in_class(db_manager, grade, class_num):
+    """
+    Fetches list of students in a specific Grade-Class who need timetables (not exceptioned, has failed items).
+    Returns list of dicts: [{'학번': '...', '이름': '...'}, ...]
+    """
+    students_df = db_manager.load_dataframe("Students")
+    if students_df.empty:
+        return []
+        
+    targets = []
+    # Ensure Types
+    students_df['학년'] = students_df['학년'].astype(str)
+    students_df['반'] = students_df['반'].astype(str)
+    
+    grade = str(grade)
+    class_num = str(class_num)
+    
+    for _, row in students_df.iterrows():
+        # Check Grade/Class
+        if row['학년'] != grade or row['반'] != class_num:
+            continue
+            
+        # Check Exception
+        is_exc = row.get('is_exception')
+        if is_exc == True or str(is_exc).upper() == 'TRUE':
+             continue
+             
+        # Check parsed_subjects (if empty, no need for timetable)
+        sub_str = str(row.get('parsed_subjects', ''))
+        failed_subjects = [s.strip() for s in sub_str.split(',') if s.strip()]
+        
+        if not failed_subjects:
+            continue
+            
+        targets.append({
+            '학번': row['학번'],
+            '이름': row['이름']
+        })
+        
+    # Sort by Student ID
+    targets.sort(key=lambda x: x['학번'])
+    
+    return targets
