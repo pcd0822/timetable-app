@@ -22,12 +22,37 @@ if st.sidebar.button("🔄 데이터 새로고침 (Refresh)"):
     st.cache_data.clear()
     st.rerun()
 
+# --- DB Status Indicator ---
+try:
+    # Quick fetch of counts (using cached load for speed)
+    st_count = len(st.session_state.db.load_dataframe("Students"))
+    tc_count = len(st.session_state.db.load_dataframe("Teachers"))
+    st.sidebar.info(f"📊 **DB 상태**\n\n- 학생: {st_count}명\n- 교사 배정: {tc_count}건")
+except Exception:
+    st.sidebar.warning("DB 연결 대기 중...")
+
 # Main Content Placeholder
 st.title("최소 성취수준 보장지도 시간표 관리")
 
 if menu == "Data Upload":
     st.header("엑셀 데이터 업로드")
     from modules.data_loader import parse_excel
+    
+    # 1. Show Current DB Status
+    st.subheader("📂 현재 저장된 데이터")
+    current_df = st.session_state.db.load_dataframe("Students")
+    if not current_df.empty:
+        st.info(f"현재 데이터베이스에 **{len(current_df)}명**의 학생 정보가 저장되어 있습니다.")
+        with st.expander("현재 저장된 데이터 보기"):
+             st.dataframe(current_df)
+    else:
+        st.warning("현재 저장된 학생 데이터가 없습니다.")
+
+    st.divider()
+
+    # 2. Upload New File
+    st.subheader("새 파일 업로드")
+    st.caption("⚠️ 새로운 파일을 업로드하고 저장하면 **기존 데이터가 덮어씌워집니다.**")
     
     uploaded_file = st.file_uploader("학생 명단 엑셀 파일 업로드", type=['xlsx'])
     if uploaded_file:
