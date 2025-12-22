@@ -269,6 +269,9 @@ elif menu == "Student View":
                     <style>
                     @media print {
                         #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
+                        /* Hide Streamlit UI elements */
+                        .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stAlert {display: none !important;}
+                        
                         /* Hide Tab Headers and Borders */
                         [data-baseweb="tab-list"], 
                         [data-baseweb="tab-highlight"], 
@@ -452,13 +455,11 @@ elif menu == "Student View":
                         content: none !important;
                     }
                     
-                    /* Hide Print Button Container Space */
-                    .element-container:has(iframe), 
-                    .stVerticalBlock > div:has(iframe) {
+                    /* Hide Print Button by hiding the iframe content */
+                    iframe {
                         display: none !important;
                         height: 0 !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
+                        width: 0 !important;
                     }
 
                     /* Hide main titles unless it is our custom print title */
