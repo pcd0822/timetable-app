@@ -301,17 +301,20 @@ elif menu == "Student View":
                         body, .stApp { background-color: white !important; }
                         
                         /* Layout fixes */
-                        .block-container, 
-                        [data-testid="stAppViewContainer"], 
-                        .main { 
-                            padding: 0 !important; 
-                            margin: 0 !important;
-                            padding-top: 0 !important;
-                            margin-top: 0 !important;
+                        /* Absolute positioning to bypass hidden element spacers */
+                        #print-area {
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            width: 100%;
+                            z-index: 9999;
                         }
                     }
                     </style>
                     """, unsafe_allow_html=True)
+
+                    # Display HTML Table wrapped in print-area
+                    st.markdown(f'<div id="print-area">{timetable_html}</div>', unsafe_allow_html=True)
 
                     # Print Button
                     components.html("""
@@ -436,6 +439,15 @@ elif menu == "Student View":
                         padding-top: 0px; 
                         margin-top: 0px;
                     }
+
+                    /* Absolute positioning to bypass hidden element spacers */
+                    #print-area {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        z-index: 9999;
+                    }
                 }
                 </style>
                 """, unsafe_allow_html=True)
@@ -448,8 +460,8 @@ elif menu == "Student View":
                 </div>
                 """, height=100)
                 
-                # Display Full HTML (Timetables)
-                st.markdown(full_html, unsafe_allow_html=True)
+                # Display Full HTML (Timetables) -> Wrapped in #print-area
+                st.markdown(f'<div id="print-area">{full_html}</div>', unsafe_allow_html=True)
 
 elif menu == "Teacher View":
     st.header("교사별 시간표 조회")
