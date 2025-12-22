@@ -519,11 +519,9 @@ elif menu == "Student View":
                     .print-page {
                         page-break-after: always;
                         break-after: page;
-                        display: flex !important;
-                        flex-direction: column;
-                        justify-content: flex-start; /* Align to Top */
-                        align-items: center; /* Center horizontally */
-                        height: 98vh; 
+                        page-break-inside: avoid;
+                        display: block; /* Back to block for natural flow */
+                        /* Removed flex/height to prevent blank pages */
                         padding-top: 0px; 
                         margin-top: 0px;
                         box-sizing: border-box;
