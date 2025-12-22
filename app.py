@@ -544,16 +544,16 @@ elif menu == "Student View":
                 </style>
                 """, unsafe_allow_html=True)
                 
-                # Print Button (Placed at TOP)
+                # Display Full HTML (Timetables) -> Wrapped in #print-area
+                st.markdown(f'<div id="print-area">{full_html}</div>', unsafe_allow_html=True)
+
+                # Print Button (Placed at BOTTOM)
                 import streamlit.components.v1 as components
                 components.html(f"""
                 <div style="text-align: center;">
                     <button onclick="window.parent.print()" style="background-color: #2196F3; border: none; color: white; padding: 15px 32px; text-align: center; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; font-weight: bold;">🏫 일괄 인쇄하기 ({len(targets)}명)</button>
                 </div>
                 """, height=100)
-                
-                # Display Full HTML (Timetables) -> Wrapped in #print-area
-                st.markdown(f'<div id="print-area">{full_html}</div>', unsafe_allow_html=True)
 
 elif menu == "Teacher View":
     st.header("교사별 시간표 조회")
