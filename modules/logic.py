@@ -218,7 +218,7 @@ def generate_student_timetable(db_manager, student_id):
     # 2. Get Master Timetable
     timetable_df = load_timetable(db_manager)
     if timetable_df.empty:
-         return pd.DataFrame(), "전체 시간표가 아직 편성되지 않았습니다."
+         return pd.DataFrame(), "전체 시간표가 아직 편성되지 않았습니다.", None
          
     # 3. Get Teacher Assignments
     teachers_df = db_manager.load_dataframe("Teachers")
@@ -259,7 +259,7 @@ def generate_student_timetable(db_manager, student_id):
             })
             
     if not personal_schedule:
-        return pd.DataFrame(), "배정된 시간표가 없습니다. (전체 시간표에 해당 과목이 없거나 교사 배정이 누락됨)"
+        return pd.DataFrame(), "배정된 시간표가 없습니다. (전체 시간표에 해당 과목이 없거나 교사 배정이 누락됨)", None
         
     # Sort by Day/Period
     # Custom Sort Order for Days
