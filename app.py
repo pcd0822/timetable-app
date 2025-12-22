@@ -268,13 +268,19 @@ elif menu == "Student View":
                     <style>
                     @media print {
                         #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
-                        .stApp > header {display: none !important;}
-                        .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stAlert {display: none !important;}
-                        iframe {display: none !important;} 
-                        .no-print {display: none !important;}
-                        
                         /* Hide Tab Headers */
                         [data-baseweb="tab-list"] {display: none !important;}
+
+                        /* Hide Header Decoration Line */
+                        header, .stApp > header {
+                            display: none !important;
+                            opacity: 0 !important;
+                            visibility: hidden !important;
+                        }
+                        header:before, header:after, .stApp > header:before, .stApp > header:after {
+                            display: none !important;
+                            content: none !important;
+                        }
 
                         /* Hide main titles BUT show our custom print title */
                         /* Hide main titles BUT show our custom print title */
@@ -381,13 +387,23 @@ elif menu == "Student View":
                 <style>
                 @media print {
                     #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
-                    .stApp > header {display: none !important;}
                     .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stAlert {display: none !important;}
                     iframe {display: none !important;} 
                     .no-print {display: none !important;}
                     
                     /* Hide Tab Headers but KEEP content */
                     [data-baseweb="tab-list"] {display: none !important;}
+
+                    /* Hide Header Decoration Line */
+                    header, .stApp > header {
+                        display: none !important;
+                        opacity: 0 !important;
+                        visibility: hidden !important;
+                    }
+                    header:before, header:after, .stApp > header:before, .stApp > header:after {
+                        display: none !important;
+                        content: none !important;
+                    }
 
                     /* Hide main titles unless it is our custom print title */
                     h1, h2, h3, h4, h5, h6 {display: none !important;}
