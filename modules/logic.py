@@ -382,18 +382,16 @@ def format_student_timetable_grid(schedule_df, student_info=None):
         sid = student_info.get('id', '')
         name = student_info.get('name', '')
         header_html = f"""
-        <div style="width: 100%; margin-bottom: 10px; font-family: 'Malgun Gothic', dotum, sans-serif;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #333; padding-bottom: 5px;">
-                <div style="flex-grow: 1; text-align: center;">
-                    <h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표</h2>
-                </div>
-                <div style="text-align: right; font-weight: bold; font-size: 18px; min-width: 200px; display: flex; align-items: flex-end; justify-content: flex-end;">
-                    <span style="margin-right: 30px;">학번 : {sid}</span>
-                    <span>이름 : {name}</span>
-                </div>
-            </div>
-        </div>
-        """
+<div style="width: 100%; margin-bottom: 10px; font-family: 'Malgun Gothic', dotum, sans-serif;">
+<div style="text-align: center; margin-bottom: 10px;">
+<h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표</h2>
+</div>
+<div style="text-align: right; font-weight: bold; font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px;">
+<span style="margin-right: 30px;">학번 : {sid}</span>
+<span>이름 : {name}</span>
+</div>
+</div>
+"""
     
     # Create a composite text for the cell
 
