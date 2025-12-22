@@ -250,12 +250,12 @@ elif menu == "Student View":
             if schedule_df is not None and not schedule_df.empty:
                 st.success(f"학번: {sid_input} 시간표")
                 
-                # Transform to Grid
+                # Transform to Grid (Now returns HTML string)
                 from modules.logic import format_student_timetable_grid
-                grid_df = format_student_timetable_grid(schedule_df)
+                timetable_html = format_student_timetable_grid(schedule_df)
                 
-                # Display Grid
-                st.table(grid_df) 
+                # Display HTML Table
+                st.markdown(timetable_html, unsafe_allow_html=True)
                 
                 # Improved Print Button using Components (to separate JS scope and ensure clickability)
                 import streamlit.components.v1 as components
