@@ -192,11 +192,11 @@ def generate_student_timetable(db_manager, student_id):
     # 1. Get Student Info
     students_df = db_manager.load_dataframe("Students")
     if students_df.empty:
-        return None, "학생 데이터가 없습니다."
+        return None, "학생 데이터가 없습니다.", None
         
     student = students_df[students_df['학번'].astype(str) == str(student_id)]
     if student.empty:
-        return None, "해당 학번의 학생을 찾을 수 없습니다."
+        return None, "해당 학번의 학생을 찾을 수 없습니다.", None
         
     row = student.iloc[0]
     if row.get('is_exception'): # Boolean check or check string 'TRUE'?
@@ -204,14 +204,14 @@ def generate_student_timetable(db_manager, student_id):
         # Sheets might return TRUE/FALSE string or 1/0.
         is_exc = row.get('is_exception')
         if is_exc == True or str(is_exc).upper() == 'TRUE':
-             return None, "예외처리된 학생이므로 시간표가 없습니다."
+             return None, "예외처리된 학생이므로 시간표가 없습니다.", None
     
     # Parse subjects
     sub_str = str(row.get('parsed_subjects', ''))
     failed_subjects = [s.strip() for s in sub_str.split(',') if s.strip()]
     
     if not failed_subjects:
-        return None, "미도달 과목이 없습니다."
+        return None, "미도달 과목이 없습니다.", None
         
     # Student Class Info
     s_grade = str(row['학년'])
@@ -275,11 +275,12 @@ def generate_student_timetable(db_manager, student_id):
     schedule_df = schedule_df.sort_values(['DayKey', 'PeriodKey'])
     schedule_df = schedule_df[['요일', '교시', '과목', '담당교사', '장소']]
     
-    return schedule_df, "Success"
+    return schedule_df, "생성 완료", row.get('이름', '')
+
 
 def get_teacher_schedule(db_manager, teacher_name):
     """
-    Generates schedule for a specific teacher.
+    Returns DataFrame of teacher's schedule.
     """
     teachers_df = db_manager.load_dataframe("Teachers")
     if teachers_df.empty:
@@ -378,15 +379,34 @@ def get_students_for_class_slot(db_manager, teacher_name, subject, day=None, per
 
     return pd.DataFrame(matched_students)
 
-def format_student_timetable_grid(schedule_df):
+def format_student_timetable_grid(schedule_df, student_info=None):
     """
-    Transforms the list-based schedule DataFrame into a grid (Timetable) format.
-    Rows: Periods (1~7)
-    Columns: Days (Mon~Fri)
-    Cell: Subject\n(Teacher / Room)
+    Transforms the list-based schedule DataFrame into an HTML grid (Timetable) format.
+    student_info: dict {'id': '...', 'name': '...'}
     """
     if schedule_df.empty:
-        return pd.DataFrame()
+        return "<p>시간표 데이터가 없습니다.</p>"
+
+    # Header HTML Generation
+    header_html = ""
+    if student_info:
+        sid = student_info.get('id', '')
+        name = student_info.get('name', '')
+        header_html = f"""
+        <div style="width: 100%; margin-bottom: 10px; font-family: 'Malgun Gothic', dotum, sans-serif;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #333; padding-bottom: 5px;">
+                <div style="flex-grow: 1; text-align: center;">
+                    <h2 style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표</h2>
+                </div>
+                <div style="text-align: right; font-weight: bold; font-size: 14px; min-width: 120px;">
+                    <div>학번 : {sid}</div>
+                    <div>이름 : {name}</div>
+                </div>
+            </div>
+        </div>
+        """
+    
+    # Create a composite text for the cell
 
     # Create a composite text for the cell
     # Use HTML breaks <br>
@@ -455,7 +475,7 @@ def format_student_timetable_grid(schedule_df):
         
     html += "</tbody></table>"
     
-    return html
+    return header_html + html
 
 
 def get_students_in_class(db_manager, grade, class_num):
