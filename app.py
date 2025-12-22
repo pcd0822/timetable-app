@@ -273,8 +273,14 @@ elif menu == "Student View":
                         iframe {display: none !important;} 
                         .no-print {display: none !important;}
                         
-                        /* Hide main titles */
-                        h1, h2, h3, h4, h5, h6 {display: none !important;}
+                        /* Hide Tab Headers */
+                        [data-baseweb="tab-list"] {display: none !important;}
+
+                        /* Hide main titles BUT show our custom print title */
+                        h1 {display: none !important;}
+                        /* h2 is used for our custom title, so we let it be, or target specific Streamlit headers if needed */
+                        /* To be safe, force our class to show */
+                        h2.print-title {display: block !important;}
 
                         table {
                             display: table !important;
@@ -370,6 +376,8 @@ elif menu == "Student View":
 
                     /* Hide main titles unless it is our custom print title */
                     h1 {display: none !important;} 
+                    /* We used h2 for student title, ensure it displays */
+                    h2.print-title {display: block !important;}
                     
                     table {
                         display: table !important;
