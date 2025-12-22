@@ -350,6 +350,9 @@ elif menu == "Student View":
                         /* Adjusted positioning for Centering */
                         #print-area {
                             /* Flexbox Centering */
+                            position: absolute;
+                            top: 0;
+                            left: 0;
                             display: flex !important;
                             flex-direction: column;
                             justify-content: center;
