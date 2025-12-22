@@ -397,7 +397,7 @@ def format_student_timetable_grid(schedule_df):
         # 2. Details (Smaller font)
         details = ""
         if row['담당교사'] and row['담당교사'] != "미배정":
-            details += f"<br><span style='font-size:0.9em; color:#555;'>담당선생님: {row['담당교사']}</span>"
+            details += f"<br><span style='font-size:0.9em; color:#555;'>교사명: {row['담당교사']}</span>"
             
         if row['장소']:
             details += f"<br><span style='font-size:0.9em; color:#555;'>교실: {str(row['장소'])}</span>"
