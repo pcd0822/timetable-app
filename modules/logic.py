@@ -376,3 +376,52 @@ def get_students_for_class_slot(db_manager, teacher_name, subject, day=None, per
 
 
 
+    return pd.DataFrame(matched_students)
+
+def format_student_timetable_grid(schedule_df):
+    """
+    Transforms the list-based schedule DataFrame into a grid (Timetable) format.
+    Rows: Periods (1~7)
+    Columns: Days (Mon~Fri)
+    Cell: Subject\n(Teacher / Room)
+    """
+    if schedule_df.empty:
+        return pd.DataFrame()
+
+    # Create a composite text for the cell
+    # "Subject\n(Teacher / Room)" or just "Subject" if others missing
+    def format_cell(row):
+        txt = f"{row['과목']}"
+        details = []
+        if row['담당교사'] and row['담당교사'] != "미배정":
+            details.append(row['담당교사'])
+        if row['장소']:
+            details.append(str(row['장소']))
+            
+        if details:
+            txt += f"\n({' '.join(details)})"
+        return txt
+
+    schedule_df['Cell'] = schedule_df.apply(format_cell, axis=1)
+
+    # Pivot
+    # Assuming '요일' and '교시' columns exist.
+    # We need to map '교시' to just integer if it's not already
+    # logic.generate_student_timetable return '교시' as integer if derived from 'PeriodKey'? 
+    # No, it returns '교시' from original df which is integer. Good.
+    
+    pivot_df = schedule_df.pivot_table(
+        index='교시', 
+        columns='요일', 
+        values='Cell', 
+        aggfunc=lambda x: '\n\n'.join(x) # Handle conflicts if any
+    )
+    
+    # Reindex to ensure fixed structure (1~7 perious, Mon~Fri)
+    days = ["월", "화", "수", "목", "금"]
+    periods = range(1, 8)
+    
+    pivot_df = pivot_df.reindex(index=periods, columns=days)
+    pivot_df = pivot_df.fillna("") # Empty cells
+    
+    return pivot_df
