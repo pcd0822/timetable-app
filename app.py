@@ -308,7 +308,7 @@ elif menu == "Student View":
                         /* Page Setup */
                         @page {
                             size: A4;
-                            margin: 5mm 15mm 25mm 15mm; /* Top Right Bottom Left */
+                            margin: 5mm 15mm 5mm 15mm; /* Top Right Bottom Left */
                         }
 
                         table {
@@ -478,7 +478,7 @@ elif menu == "Student View":
                     /* Page Setup */
                     @page {
                         size: A4;
-                        margin: 5mm 15mm 25mm 15mm; /* Top Right Bottom Left */
+                        margin: 5mm 15mm 5mm 15mm; /* Top Right Bottom Left */
                     }
                     
                     table {
