@@ -237,46 +237,148 @@ elif menu == "Room Assignment":
         st.warning("교사 배정 데이터가 없습니다. 'Teacher Assignment'를 먼저 진행하세요.")
 
 elif menu == "Student View":
-    st.header("학생 개인 시간표 조회")
+    st.header("학생 시간표 조회 및 인쇄")
     
-    from modules.logic import generate_student_timetable
+    from modules.logic import generate_student_timetable, format_student_timetable_grid, get_students_in_class
     
-    sid_input = st.text_input("학번을 입력하세요 (예: 10101)")
+    # Mode Selection using Tabs
+    tab1, tab2 = st.tabs(["👤 개인별 조회", "🏫 학급별 일괄 조회 (인쇄용)"])
     
-    if st.button("조회"):
-        if sid_input:
-            schedule_df, msg = generate_student_timetable(st.session_state.db, sid_input)
+    with tab1:
+        sid_input = st.text_input("학번을 입력하세요 (예: 10101)")
+        
+        if st.button("조회"):
+            if sid_input:
+                schedule_df, msg = generate_student_timetable(st.session_state.db, sid_input)
+                
+                if schedule_df is not None and not schedule_df.empty:
+                    st.success(f"학번: {sid_input} 시간표")
+                    
+                    # Transform to Grid (Now returns HTML string)
+                    timetable_html = format_student_timetable_grid(schedule_df)
+                    
+                    # Display HTML Table
+                    st.markdown(timetable_html, unsafe_allow_html=True)
+                    
+                    # Improved Print Button using Components
+                    import streamlit.components.v1 as components
+                    
+                    # CSS for clean print
+                    st.markdown("""
+                    <style>
+                    @media print {
+                        #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
+                        .stApp > header {display: none !important;}
+                        .stTextInput, .stButton, .stExpander, .stSelectbox {display: none !important;}
+                        iframe {display: none !important;} 
+                        
+                        /* Hide main titles */
+                        h1, h2, h3, h4, h5, h6 {display: none !important;}
+
+                        table {
+                            display: table !important;
+                            width: 100% !important;
+                            border-collapse: collapse !important;
+                        }
+                        th, td {
+                            border: 1px solid #000 !important;
+                            padding: 8px !important;
+                            color: black !important;
+                            -webkit-print-color-adjust: exact; 
+                        }
+                        body, .stApp { background-color: white !important; }
+                        
+                        .stApp:before {
+                            content: '학번: """ + str(sid_input) + """ 시간표';
+                            font-size: 24px;
+                            font-weight: bold;
+                            display: block;
+                            text-align: center;
+                            margin-bottom: 20px;
+                            margin-top: 20px;
+                        }
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    # Print Button
+                    components.html("""
+                    <div style="text-align: center;">
+                        <button onclick="window.parent.print()" style="background-color: #4CAF50; border: none; color: white; padding: 15px 32px; text-align: center; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; font-weight: bold;">🖨️ 시간표 인쇄하기</button>
+                    </div>
+                    """, height=100)
+                    
+                elif schedule_df is None: 
+                    st.warning(msg)
+                else: 
+                    st.info(msg)
+            else:
+                st.error("학번을 입력해주세요.")
+
+    with tab2:
+        st.info("특정 학급의 배정 대상 학생들의 시간표를 한 번에 출력합니다. (학생 1명당 A4 1페이지)")
+        
+        # Select Grade/Class
+        # Assuming Data is loaded, let's get unique Grade/Class combo or separate inputs
+        col_g, col_c = st.columns(2)
+        with col_g:
+            grade_input = st.selectbox("학년", ["1", "2", "3"])
+        with col_c:
+            class_input = st.selectbox("반", [str(i) for i in range(1, 16)]) # 1~15 class
             
-            if schedule_df is not None and not schedule_df.empty:
-                st.success(f"학번: {sid_input} 시간표")
+        if st.button("일괄 조회 및 인쇄 미리보기"):
+            targets = get_students_in_class(st.session_state.db, grade_input, class_input)
+            
+            if not targets:
+                st.warning(f"{grade_input}학년 {class_input}반에 최소 성취수준 보장지도 대상 학생이 없습니다.")
+            else:
+                st.success(f"총 {len(targets)}명의 학생 시간표를 생성합니다.")
                 
-                # Transform to Grid (Now returns HTML string)
-                from modules.logic import format_student_timetable_grid
-                timetable_html = format_student_timetable_grid(schedule_df)
+                full_html = ""
                 
-                # Display HTML Table
-                st.markdown(timetable_html, unsafe_allow_html=True)
+                # Progress bar
+                prog_bar = st.progress(0)
                 
-                # Improved Print Button using Components (to separate JS scope and ensure clickability)
-                import streamlit.components.v1 as components
+                for idx, student in enumerate(targets):
+                    sid = student['학번']
+                    name = student['이름']
+                    
+                    sch_df, _ = generate_student_timetable(st.session_state.db, sid)
+                    
+                    # Generate HTML Grid
+                    if sch_df is not None and not sch_df.empty:
+                        t_html = format_student_timetable_grid(sch_df)
+                    else:
+                        t_html = "<p style='text-align:center;'>배정된 시간표 없음</p>"
+                        
+                    # Wrap with Title and Page Break
+                    # Page Break: page-break-after: always
+                    full_html += f"""
+                    <div class="print-page" style="page-break-after: always; padding-top: 20px;">
+                        <h2 style="text-align: center; margin-bottom: 20px; display: block !important;">학번: {sid} 이름: {name} 시간표</h2>
+                        {t_html}
+                    </div>
+                    <br><hr class="no-print"><br>
+                    """
+                    prog_bar.progress((idx + 1) / len(targets))
+                    
+                # Display Full HTML
+                st.markdown(full_html, unsafe_allow_html=True)
                 
-                # CSS for hiding elements during print (injected into main page)
+                # CSS for Batch Print
                 st.markdown("""
                 <style>
                 @media print {
-                    /* Hide Streamlit UI elements */
-                    #MainMenu {display: none !important;}
-                    header {display: none !important;}
-                    footer {display: none !important;}
-                    [data-testid="stSidebar"] {display: none !important;}
+                    #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
                     .stApp > header {display: none !important;}
-                    .stDeployButton {display: none !important;}
+                    .stTextInput, .stButton, .stExpander, .stSelectbox, .stTabs, .stProgress {display: none !important;}
+                    iframe {display: none !important;} 
+                    .no-print {display: none !important;}
                     
-                    /* Hide inputs and buttons in main area, EXCLUDING our print content if needed */
-                    .stTextInput, .stButton, .stExpander, .stSelectbox {display: none !important;}
-                    iframe {display: none !important;} /* Hide the print button iframe itself */
+                    /* Hide main titles unless it is our custom print title */
+                    h1 {display: none !important;} 
+                    /* We used h2 for student title, ensure it displays */
                     
-                    /* Ensure Table is visible and centered */
                     table {
                         display: table !important;
                         width: 100% !important;
@@ -288,58 +390,32 @@ elif menu == "Student View":
                         color: black !important;
                         -webkit-print-color-adjust: exact; 
                     }
+                    body, .stApp { background-color: white !important; }
                     
-                    /* Force white background */
-                    body, .stApp {
-                        background-color: white !important;
+                    /* Page Break Control */
+                    .print-page {
+                        page-break-after: always;
+                        break-after: page;
+                        display: block;
+                        height: 98vh; /* Ensure full page usage */
+                        position: relative;
                     }
                     
-                    /* Add a title for print */
-                    .stApp:before {
-                        content: '학번: """ + str(sid_input) + """ 시간표';
-                        font-size: 24px;
-                        font-weight: bold;
-                        display: block;
-                        text-align: center;
-                        margin-bottom: 20px;
-                        margin-top: 20px;
+                    /* Remove default Streamlit padding for print */
+                    .block-container {
+                        padding: 0 !important;
                     }
                 }
                 </style>
                 """, unsafe_allow_html=True)
-
-                # Actual Button Component
+                
+                # Print Button
+                import streamlit.components.v1 as components
                 components.html("""
                 <div style="text-align: center;">
-                    <button onclick="window.parent.print()" style="
-                        background-color: #4CAF50; 
-                        border: none;
-                        color: white;
-                        padding: 15px 32px;
-                        text-align: center;
-                        text-decoration: none;
-                        display: inline-block;
-                        font-size: 16px;
-                        margin: 4px 2px;
-                        cursor: pointer;
-                        border-radius: 8px;
-                        font-family: sans-serif;
-                        font-weight: bold;
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        🖨️ 시간표 인쇄하기
-                    </button>
-                    <p style="color: gray; font-size: 12px; margin-top: 5px; font-family: sans-serif;">
-                        (버튼을 눌러 인쇄 창을 엽니다)
-                    </p>
+                    <button onclick="window.parent.print()" style="background-color: #2196F3; border: none; color: white; padding: 15px 32px; text-align: center; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; font-weight: bold;">🏫 일괄 인쇄하기 ({len(targets)}명)</button>
                 </div>
                 """, height=100)
-                
-            elif schedule_df is None: # Error case (e.g. exception or not found)
-                st.warning(msg)
-            else: # Empty DF but success (e.g. no subjects scheduled yet)
-                st.info(msg)
-        else:
-            st.error("학번을 입력해주세요.")
 
 elif menu == "Teacher View":
     st.header("교사별 시간표 조회")
