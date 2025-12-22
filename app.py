@@ -371,10 +371,14 @@ elif menu == "Student View":
                 @media print {
                     #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
                     .stApp > header {display: none !important;}
-                    .stTextInput, .stButton, .stExpander, .stSelectbox, .stTabs, .stProgress {display: none !important;}
+                    .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress {display: none !important;}
                     iframe {display: none !important;} 
                     .no-print {display: none !important;}
                     
+                    /* Hide Tab Headers but KEEP content */
+                    [data-baseweb="tab-list"] {display: none !important;}
+                    /* Do NOT hide .stTabs as it contains the content */
+
                     /* Hide main titles unless it is our custom print title */
                     h1 {display: none !important;} 
                     /* We used h2 for student title, ensure it displays */
