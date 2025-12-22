@@ -94,9 +94,6 @@ def save_teacher_assignment(db_manager, subject, teacher_name, classes, room):
     
     return db_manager.save_dataframe("Teachers", df)
 
-
-    return db_manager.save_dataframe("Teachers", df)
-
 def get_teacher_assignments(db_manager):
     return db_manager.load_dataframe("Teachers")
 
@@ -369,14 +366,6 @@ def get_students_for_class_slot(db_manager, teacher_name, subject, day=None, per
                     '번호': row['번호']
                 })
                 
-    if not matched_students:
-        return pd.DataFrame()
-        
-    return pd.DataFrame(matched_students)
-
-
-
-
     return pd.DataFrame(matched_students)
 
 def format_student_timetable_grid(schedule_df, student_info=None):
@@ -396,7 +385,7 @@ def format_student_timetable_grid(schedule_df, student_info=None):
         <div style="width: 100%; margin-bottom: 10px; font-family: 'Malgun Gothic', dotum, sans-serif;">
             <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #333; padding-bottom: 5px;">
                 <div style="flex-grow: 1; text-align: center;">
-                    <h2 style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표</h2>
+                    <h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표</h2>
                 </div>
                 <div style="text-align: right; font-weight: bold; font-size: 14px; min-width: 120px;">
                     <div>학번 : {sid}</div>
