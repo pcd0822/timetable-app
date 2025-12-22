@@ -290,13 +290,11 @@ elif menu == "Student View":
                             content: none !important;
                         }
                         
-                        /* Hide Print Button Container Space */
-                        .element-container:has(iframe), 
-                        .stVerticalBlock > div:has(iframe) {
+                        /* Hide Print Button by hiding the iframe content */
+                        iframe {
                             display: none !important;
                             height: 0 !important;
-                            margin: 0 !important;
-                            padding: 0 !important;
+                            width: 0 !important;
                         }
 
                         /* Hide main titles BUT show our custom print title */
