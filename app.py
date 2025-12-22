@@ -2,6 +2,7 @@ import streamlit as st
 from modules.db_manager import DBManager
 import pandas as pd
 import textwrap
+import streamlit.components.v1 as components
 
 # Page Config
 st.set_page_config(page_title="시간표 배정 프로그램", layout="wide")
@@ -22,6 +23,37 @@ if st.sidebar.button("🔄 데이터 새로고침 (Refresh)"):
         st.session_state.db.cache = {}
     st.cache_data.clear()
     st.rerun()
+
+    st.sidebar.divider()
+    
+    # Scroll Navigation Buttons (Fixed Height Component)
+    components.html("""
+    <script>
+        function scrollMain(direction) {
+            // Find the main scrollable container in Streamlit
+            const main = window.parent.document.querySelector('.main') || window.parent.document.querySelector('section.main');
+            if (main) {
+                if (direction === 'top') {
+                    main.scrollTo({top: 0, behavior: 'smooth'});
+                } else {
+                    main.scrollTo({top: main.scrollHeight, behavior: 'smooth'});
+                }
+            }
+        }
+    </script>
+    <div style="display: flex; gap: 5px; justify-content: center; padding: 5px;">
+        <button onclick="scrollMain('top')" style="
+            background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 5px; color: #333;
+            padding: 8px 12px; cursor: pointer; font-size: 14px; flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: bold;">
+            ⬆️ 맨 위
+        </button>
+        <button onclick="scrollMain('bottom')" style="
+            background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 5px; color: #333;
+            padding: 8px 12px; cursor: pointer; font-size: 14px; flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: bold;">
+            ⬇️ 맨 아래
+        </button>
+    </div>
+    """, height=60)
 
 # --- DB Status Indicator ---
 try:
