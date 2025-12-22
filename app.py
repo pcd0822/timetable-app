@@ -338,19 +338,20 @@ elif menu == "Student View":
                             margin: 0 !important;
                             padding-top: 0 !important;
                             margin-top: 0 !important;
-                            position: static !important;
-                            transform: none !important;
+                            /* Removed forced static position as it might break rendering */
+                            /* position: static !important; */
+                            /* transform: none !important; */
                             overflow: visible !important;
                         }
                         
-                        /* Absolute positioning to bypass hidden element spacers */
+                        /* Adjusted positioning */
                         #print-area {
-                            position: absolute;
-                            top: 0;
-                            left: 0;
+                            /* Try relative first with negative margin if needed, or absolute if sure */
+                            /* position: absolute; top: 0; left: 0; width: 100%; z-index: 9999; */
+                            
+                            /* Since we hide the button, natural flow should be fine if padding is 0 */
+                            display: block;
                             width: 100%;
-                            margin: 0;
-                            padding: 0;
                             z-index: 9999;
                         }
                     }
@@ -488,7 +489,7 @@ elif menu == "Student View":
                         overflow: visible !important;
                     }
                     
-                    /* Aggressively remove Streamlit container padding AND Reset Positioning */
+                    /* Aggressively remove Streamlit container padding */
                     .block-container, 
                     [data-testid="stAppViewContainer"], 
                     [data-testid="stHeader"], 
@@ -500,9 +501,7 @@ elif menu == "Student View":
                         padding-top: 0 !important;
                         margin-top: 0 !important;
                         max-width: none !important;
-                        position: static !important; /* Force static so absolute child goes to root */
-                        transform: none !important;
-                        overflow: visible !important;
+                        /* Removed forced static position */
                     }
 
                     /* Page Break Control */
@@ -515,14 +514,10 @@ elif menu == "Student View":
                         margin-top: 0px;
                     }
 
-                    /* Absolute positioning to bypass hidden element spacers */
+                    /* Formatting for print area */
                     #print-area {
-                        position: absolute;
-                        top: 0;
-                        left: 0;
+                        display: block;
                         width: 100%;
-                        margin: 0;
-                        padding: 0;
                         z-index: 9999;
                     }
                 }
