@@ -347,15 +347,18 @@ elif menu == "Student View":
                         }
                         
                         /* Adjusted positioning */
+                        /* Adjusted positioning for Centering */
                         #print-area {
-                            /* Try relative first with negative margin if needed, or absolute if sure */
-                            /* position: absolute; top: 0; left: 0; width: 100%; z-index: 9999; */
-                            
-                            /* Since we hide the button, natural flow should be fine if padding is 0 */
-                            display: block;
+                            /* Flexbox Centering */
+                            display: flex !important;
+                            flex-direction: column;
+                            justify-content: center;
+                            align-items: center;
+                            height: 98vh; /* Center vertically */
                             width: 100%;
                             z-index: 9999;
-                            margin-top: -20px;
+                            margin: 0;
+                            padding: 0;
                         }
                     }
                     </style>
@@ -509,14 +512,18 @@ elif menu == "Student View":
                         /* Removed forced static position */
                     }
 
-                    /* Page Break Control */
+                    /* Page Break Control & Centering */
                     .print-page {
                         page-break-after: always;
                         break-after: page;
-                        display: block;
-                        position: relative;
+                        display: flex !important;
+                        flex-direction: column;
+                        justify-content: center;
+                        align-items: center;
+                        height: 98vh; /* Center vertically on the page */
                         padding-top: 0px; 
                         margin-top: 0px;
+                        box-sizing: border-box;
                     }
 
                     /* Formatting for print area */
@@ -524,7 +531,6 @@ elif menu == "Student View":
                         display: block;
                         width: 100%;
                         z-index: 9999;
-                        margin-top: -20px;
                     }
                 }
                 </style>
