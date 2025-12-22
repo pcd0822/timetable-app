@@ -387,9 +387,9 @@ def format_student_timetable_grid(schedule_df, student_info=None):
                 <div style="flex-grow: 1; text-align: center;">
                     <h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표</h2>
                 </div>
-                <div style="text-align: right; font-weight: bold; font-size: 14px; min-width: 120px;">
-                    <div>학번 : {sid}</div>
-                    <div>이름 : {name}</div>
+                <div style="text-align: right; font-weight: bold; font-size: 18px; min-width: 200px; display: flex; align-items: flex-end; justify-content: flex-end;">
+                    <span style="margin-right: 30px;">학번 : {sid}</span>
+                    <span>이름 : {name}</span>
                 </div>
             </div>
         </div>
