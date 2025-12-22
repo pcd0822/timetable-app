@@ -194,7 +194,7 @@ def generate_student_timetable(db_manager, student_id):
     if students_df.empty:
         return None, "학생 데이터가 없습니다."
         
-    student = students_df[students_df['학번'] == str(student_id)]
+    student = students_df[students_df['학번'].astype(str) == str(student_id)]
     if student.empty:
         return None, "해당 학번의 학생을 찾을 수 없습니다."
         
