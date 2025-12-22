@@ -249,18 +249,71 @@ elif menu == "Student View":
             
             if schedule_df is not None and not schedule_df.empty:
                 st.success(f"학번: {sid_input} 시간표")
-                st.table(schedule_df) # Use table for print-friendly view
                 
-                # Simple Print Button Solution
-                # Streamlit doesn't natively support "Print", usually utilize browser print.
+                # Transform to Grid
+                from modules.logic import format_student_timetable_grid
+                grid_df = format_student_timetable_grid(schedule_df)
+                
+                # Display Grid using HTML table for better print control (st.table is deprecated-ish but good for static)
+                # st.table is fine.
+                st.table(grid_df) 
+                
+                # Improved Print Button & CSS
+                # Using a styled HTML button and explicit @media print rules
                 st.markdown("""
-                <button onclick="window.print()">🖨️ 인쇄하기</button>
+                <br>
+                <div style="text-align: center;">
+                    <button onclick="window.print()" style="
+                        background-color: #4CAF50; 
+                        border: none;
+                        color: white;
+                        padding: 15px 32px;
+                        text-align: center;
+                        text-decoration: none;
+                        display: inline-block;
+                        font-size: 16px;
+                        margin: 4px 2px;
+                        cursor: pointer;
+                        border-radius: 8px;">
+                        🖨️ 시간표 인쇄하기
+                    </button>
+                    <p style="color: gray; font-size: 0.8em; margin-top: 5px;">(인쇄 설정에서 '배경 그래픽'을 체크하면 더 잘 보입니다)</p>
+                </div>
+
                 <style>
                 @media print {
-                    /* Hide sidebar and inputs */
-                    section[data-testid="stSidebar"] {display: none;}
-                    .stTextInput, .stButton {display: none;}
-                    /* Ensure table is visible */
+                    /* Hide Streamlit UI elements */
+                    #MainMenu {display: none !important;}
+                    header {display: none !important;}
+                    footer {display: none !important;}
+                    [data-testid="stSidebar"] {display: none !important;}
+                    .stApp > header {display: none !important;}
+                    .stDeployButton {display: none !important;}
+                    
+                    /* Hide inputs and buttons in main area */
+                    .stTextInput, .stButton, .stExpander {display: none !important;}
+                    button {display: none !important;} 
+                    
+                    /* Ensure Table is visible and centered */
+                    .stTable {
+                        display: block !important;
+                        width: 100% !important;
+                    }
+                    
+                    /* Force white background */
+                    body, .stApp {
+                        background-color: white !important;
+                    }
+                    
+                    /* Add a title for print */
+                    .stApp:before {
+                        content: '학번: """ + sid_input + """ 시간표';
+                        font-size: 24px;
+                        font-weight: bold;
+                        display: block;
+                        text-align: center;
+                        margin-bottom: 20px;
+                    }
                 }
                 </style>
                 """, unsafe_allow_html=True)
