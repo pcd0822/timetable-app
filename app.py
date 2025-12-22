@@ -249,13 +249,13 @@ elif menu == "Student View":
         
         if st.button("조회"):
             if sid_input:
-                schedule_df, msg = generate_student_timetable(st.session_state.db, sid_input)
+                schedule_df, msg, s_name = generate_student_timetable(st.session_state.db, sid_input)
                 
                 if schedule_df is not None and not schedule_df.empty:
-                    st.success(f"학번: {sid_input} 시간표")
+                    st.success(f"학번: {sid_input} 이름: {s_name} 시간표")
                     
-                    # Transform to Grid (Now returns HTML string)
-                    timetable_html = format_student_timetable_grid(schedule_df)
+                    # Transform to Grid (Now returns HTML string with Header)
+                    timetable_html = format_student_timetable_grid(schedule_df, student_info={'id': sid_input, 'name': s_name})
                     
                     # Display HTML Table
                     st.markdown(timetable_html, unsafe_allow_html=True)
@@ -269,8 +269,9 @@ elif menu == "Student View":
                     @media print {
                         #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
                         .stApp > header {display: none !important;}
-                        .stTextInput, .stButton, .stExpander, .stSelectbox {display: none !important;}
+                        .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stAlert {display: none !important;}
                         iframe {display: none !important;} 
+                        .no-print {display: none !important;}
                         
                         /* Hide main titles */
                         h1, h2, h3, h4, h5, h6 {display: none !important;}
@@ -288,15 +289,8 @@ elif menu == "Student View":
                         }
                         body, .stApp { background-color: white !important; }
                         
-                        .stApp:before {
-                            content: '학번: """ + str(sid_input) + """ 시간표';
-                            font-size: 24px;
-                            font-weight: bold;
-                            display: block;
-                            text-align: center;
-                            margin-bottom: 20px;
-                            margin-top: 20px;
-                        }
+                        /* Layout fixes */
+                        .block-container { padding: 0 !important; }
                     }
                     </style>
                     """, unsafe_allow_html=True)
@@ -343,45 +337,39 @@ elif menu == "Student View":
                     sid = student['학번']
                     name = student['이름']
                     
-                    sch_df, _ = generate_student_timetable(st.session_state.db, sid)
+                    sch_df, _, _ = generate_student_timetable(st.session_state.db, sid)
                     
-                    # Generate HTML Grid
+                    # Generate HTML Grid with Header
                     if sch_df is not None and not sch_df.empty:
-                        t_html = format_student_timetable_grid(sch_df)
+                        t_html = format_student_timetable_grid(sch_df, student_info={'id': sid, 'name': name})
                     else:
-                        t_html = "<p style='text-align:center;'>배정된 시간표 없음</p>"
+                        t_html = f"<div style='text-align:center; padding: 20px;'><h3>{name} ({sid})</h3><p>배정된 시간표 없음</p></div>"
                         
-                    # Wrap with Title and Page Break
-                    # Page Break: page-break-after: always
+                    # Wrap with Page Break
+                    # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
                     full_html += f"""
-<div class="print-page" style="page-break-after: always; padding-top: 20px;">
-<h2 style="text-align: center; margin-bottom: 20px; display: block !important;">학번: {sid} 이름: {name} 시간표</h2>
+<div class="print-page" style="page-break-after: always; padding-top: 20px; box-sizing: border-box;">
 {t_html}
 </div>
 <br><hr class="no-print"><br>
 """
                     prog_bar.progress((idx + 1) / len(targets))
                     
-                # Display Full HTML
-                st.markdown(full_html, unsafe_allow_html=True)
-                
                 # CSS for Batch Print
                 st.markdown("""
                 <style>
                 @media print {
                     #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
                     .stApp > header {display: none !important;}
-                    .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress {display: none !important;}
+                    .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stAlert {display: none !important;}
                     iframe {display: none !important;} 
                     .no-print {display: none !important;}
                     
                     /* Hide Tab Headers but KEEP content */
                     [data-baseweb="tab-list"] {display: none !important;}
-                    /* Do NOT hide .stTabs as it contains the content */
 
                     /* Hide main titles unless it is our custom print title */
                     h1 {display: none !important;} 
-                    /* We used h2 for student title, ensure it displays */
                     
                     table {
                         display: table !important;
@@ -413,13 +401,16 @@ elif menu == "Student View":
                 </style>
                 """, unsafe_allow_html=True)
                 
-                # Print Button
+                # Print Button (Placed at TOP)
                 import streamlit.components.v1 as components
                 components.html(f"""
                 <div style="text-align: center;">
                     <button onclick="window.parent.print()" style="background-color: #2196F3; border: none; color: white; padding: 15px 32px; text-align: center; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; font-weight: bold;">🏫 일괄 인쇄하기 ({len(targets)}명)</button>
                 </div>
                 """, height=100)
+                
+                # Display Full HTML (Timetables)
+                st.markdown(full_html, unsafe_allow_html=True)
 
 elif menu == "Teacher View":
     st.header("교사별 시간표 조회")
