@@ -11,10 +11,15 @@ def parse_excel(file):
     except Exception as e:
         return None, f"Error reading Excel file: {e}"
 
+    # Normalize columns (strip whitespace)
+    df.columns = df.columns.astype(str).str.strip()
+    
     required_cols = ['학번', '이름', '미도달과목', '예외처리']
     # Check if critical columns exist
-    if not all(col in df.columns for col in required_cols):
-        return None, f"Missing required columns. Expected at least: {required_cols}"
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    
+    if missing_cols:
+        return None, f"엑셀 파일 양식이 맞지 않습니다.\n누락된 열: {missing_cols}\n현재 파일의 열: {list(df.columns)}"
 
     # 1. Student ID Parsing
     # Ensure '학번' is treated as string
