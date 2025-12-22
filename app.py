@@ -21,14 +21,22 @@ with st.sidebar:
     components.html("""
     <script>
         function scrollMain(direction) {
-            // Find the main scrollable container in Streamlit
-            const main = window.parent.document.querySelector('.main') || window.parent.document.querySelector('section.main');
+            // Streamlit 1.x scrolling container uses this data-testid
+            let main = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
+            
+            // Fallbacks for older versions or different templates
+            if (!main) main = window.parent.document.querySelector('.main');
+            if (!main) main = window.parent.document.querySelector('section.main');
+            
             if (main) {
                 if (direction === 'top') {
                     main.scrollTo({top: 0, behavior: 'smooth'});
                 } else {
                     main.scrollTo({top: main.scrollHeight, behavior: 'smooth'});
                 }
+            } else {
+                // Last resort: try scrolling window (rarely works in Streamlit but worth a try)
+                window.parent.scrollTo({top: direction === 'top' ? 0 : 99999, behavior: 'smooth'});
             }
         }
     </script>
