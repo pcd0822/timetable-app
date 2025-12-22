@@ -230,6 +230,7 @@ elif menu == "Room Assignment":
             success = st.session_state.db.save_dataframe("Teachers", edited_df)
             if success:
                 st.success("강의실 배정 정보가 업데이트되었습니다.")
+                st.rerun()
             else:
                 st.error("저장 실패")
     else:
