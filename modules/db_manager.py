@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 import os
 import json
+import time
 
 SCOPE = [
     "https://spreadsheets.google.com/feeds",
@@ -19,6 +20,7 @@ class DBManager:
         self.spreadsheet_url = "https://docs.google.com/spreadsheets/d/1VWAAy-5JJlX0kyRNQg4nXkTtkCeab-YLMISUnhCHkZQ/edit?usp=sharing"
         self.spreadsheet_name = "Timetable_System_DB" # Kept for reference
         self.is_local = False # Flag for local fallback
+        self.cache = {} # In-memory cache for dataframes
 
     def _get_service_account_email(self):
         """Extracts client_email from credentials.json or secrets."""
@@ -114,6 +116,9 @@ class DBManager:
 
     def save_dataframe(self, sheet_name, df):
         """Saves a pandas DataFrame to a specific worksheet or local CSV."""
+        # Update Cache immediately so we don't need to re-fetch
+        self.cache[sheet_name] = df.copy()
+
         # Check Local Mode first
         if self.is_local:
             return self._save_local(sheet_name, df)
@@ -132,6 +137,7 @@ class DBManager:
             try:
                 worksheet = sh.add_worksheet(title=sheet_name, rows=100, cols=20)
             except Exception as e:
+                # Local fallback for any creation error
                 if "quota" in str(e).lower() or "403" in str(e):
                     st.warning("⚠️ Google Drive 용량 부족으로 인해 **로컬 저장소 모드**로 전환합니다.")
                     self.is_local = True
@@ -142,41 +148,86 @@ class DBManager:
              st.error(f"Worksheet error: {e}")
              return False
         
-        try:
-            # Sanitize DataFrame: Replace NaN and Infinity with empty strings for JSON compatibility
-            df_cleaned = df.fillna("").replace([float('inf'), float('-inf')], "")
-            worksheet.update([df_cleaned.columns.values.tolist()] + df_cleaned.values.tolist())
-            return True
-        except Exception as e:
-            if "quota" in str(e).lower() or "403" in str(e):
-                st.warning("⚠️ Google Drive 용량 초과로 인해 **로컬 저장소 모드**로 전환하여 저장합니다.")
-                self.is_local = True
-                return self._save_local(sheet_name, df)
-            st.error(f"Failed to save data to {sheet_name}: {e}")
-            return False
+        # Retry logic for Writing
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Sanitize DataFrame: Replace NaN and Infinity with empty strings for JSON compatibility
+                df_cleaned = df.fillna("").replace([float('inf'), float('-inf')], "")
+                worksheet.update([df_cleaned.columns.values.tolist()] + df_cleaned.values.tolist())
+                return True
+            except Exception as e:
+                if "quota" in str(e).lower() or "429" in str(e):
+                    if attempt < max_retries - 1:
+                        sleep_time = (2 ** attempt) + 1 # 2, 3, 5 seconds
+                        time.sleep(sleep_time)
+                        continue
+                    else:
+                        st.warning("⚠️ API 사용량 초과(429)가 지속되어 **로컬 저장소 모드**로 전환하여 저장합니다.")
+                        self.is_local = True
+                        return self._save_local(sheet_name, df)
+                elif "403" in str(e):
+                     st.warning("⚠️ 권한 오류로 인해 **로컬 저장소 모드**로 전환합니다.")
+                     self.is_local = True
+                     return self._save_local(sheet_name, df)
+                
+                st.error(f"Failed to save data to {sheet_name}: {e}")
+                return False
+        return False
 
-    def load_dataframe(self, sheet_name):
+    def load_dataframe(self, sheet_name, force_update=False):
         """Loads a worksheet into a pandas DataFrame."""
+        # 1. Check Cache
+        if not force_update and sheet_name in self.cache:
+            return self.cache[sheet_name]
+
         if self.is_local:
-            return self._load_local(sheet_name)
+            df = self._load_local(sheet_name)
+            self.cache[sheet_name] = df
+            return df
 
         sh = self.get_spreadsheet()
         if self.is_local:
-             return self._load_local(sheet_name)
+             df = self._load_local(sheet_name)
+             self.cache[sheet_name] = df
+             return df
              
         if not sh:
             return pd.DataFrame() 
 
-        try:
-            worksheet = sh.worksheet(sheet_name)
-            data = worksheet.get_all_records()
-            return pd.DataFrame(data)
-        except gspread.WorksheetNotFound:
-            return pd.DataFrame() 
-        except Exception as e:
-             # Retry locally if connection fails?
-             st.warning(f"Error loading from Sheets ({e}). Trying local...")
-             return self._load_local(sheet_name)
+        # Retry logic for Reading
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                worksheet = sh.worksheet(sheet_name)
+                data = worksheet.get_all_records()
+                df = pd.DataFrame(data)
+                self.cache[sheet_name] = df # Update Cache
+                return df
+            except gspread.WorksheetNotFound:
+                # This is not an error, just empty
+                return pd.DataFrame() 
+            except Exception as e:
+                if "quota" in str(e).lower() or "429" in str(e):
+                    if attempt < max_retries - 1:
+                        sleep_time = (2 ** attempt) + 1
+                        time.sleep(sleep_time)
+                        continue
+                    else:
+                        if not force_update:
+                             # Last ditch: return cache if exists even if old
+                             if sheet_name in self.cache:
+                                 st.warning(f"⚠️ API 연결 불안정. 캐시된 데이터(이전 버전)를 불러옵니다. ({sheet_name})")
+                                 return self.cache[sheet_name]
+                        
+                        st.warning(f"Error loading from Sheets ({e}). Trying local...")
+                        return self._load_local(sheet_name)
+                else:
+                    # Other errors
+                     st.warning(f"Error loading from Sheets ({e}). Trying local...")
+                     return self._load_local(sheet_name)
+        
+        return pd.DataFrame()
 
     # --- Local Fallback Methods ---
     def _get_local_path(self, sheet_name):
