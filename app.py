@@ -301,7 +301,14 @@ elif menu == "Student View":
                         body, .stApp { background-color: white !important; }
                         
                         /* Layout fixes */
-                        .block-container { padding: 0 !important; }
+                        .block-container, 
+                        [data-testid="stAppViewContainer"], 
+                        .main { 
+                            padding: 0 !important; 
+                            margin: 0 !important;
+                            padding-top: 0 !important;
+                            margin-top: 0 !important;
+                        }
                     }
                     </style>
                     """, unsafe_allow_html=True)
@@ -403,22 +410,31 @@ elif menu == "Student View":
                     html, body, .stApp { 
                         background-color: white !important; 
                         height: auto !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
                     }
                     
+                    /* Aggressively remove Streamlit container padding */
+                    .block-container, 
+                    [data-testid="stAppViewContainer"], 
+                    [data-testid="stHeader"], 
+                    [data-testid="stToolbar"],
+                    .main {
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        padding-top: 0 !important;
+                        margin-top: 0 !important;
+                        max-width: none !important;
+                    }
+
                     /* Page Break Control */
                     .print-page {
                         page-break-after: always;
                         break-after: page;
                         display: block;
-                        /* height: 98vh; REMOVED to prevent overflow */
                         position: relative;
                         padding-top: 0px; 
-                    }
-                    
-                    /* Remove default Streamlit padding for print */
-                    .block-container {
-                        padding: 0 !important;
-                        max-width: none !important;
+                        margin-top: 0px;
                     }
                 }
                 </style>
