@@ -354,12 +354,12 @@ elif menu == "Student View":
                     # Wrap with Title and Page Break
                     # Page Break: page-break-after: always
                     full_html += f"""
-                    <div class="print-page" style="page-break-after: always; padding-top: 20px;">
-                        <h2 style="text-align: center; margin-bottom: 20px; display: block !important;">학번: {sid} 이름: {name} 시간표</h2>
-                        {t_html}
-                    </div>
-                    <br><hr class="no-print"><br>
-                    """
+<div class="print-page" style="page-break-after: always; padding-top: 20px;">
+<h2 style="text-align: center; margin-bottom: 20px; display: block !important;">학번: {sid} 이름: {name} 시간표</h2>
+{t_html}
+</div>
+<br><hr class="no-print"><br>
+"""
                     prog_bar.progress((idx + 1) / len(targets))
                     
                 # Display Full HTML
