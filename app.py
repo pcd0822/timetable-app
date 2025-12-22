@@ -308,7 +308,7 @@ elif menu == "Student View":
                         /* Page Setup */
                         @page {
                             size: A4;
-                            margin: 15mm;
+                            margin: 5mm 15mm 25mm 15mm; /* Top Right Bottom Left */
                         }
 
                         table {
@@ -355,6 +355,7 @@ elif menu == "Student View":
                             display: block;
                             width: 100%;
                             z-index: 9999;
+                            margin-top: -20px;
                         }
                     }
                     </style>
@@ -417,12 +418,14 @@ elif menu == "Student View":
                     # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
                     # Wrap with Page Break
                     # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
-                    full_html += textwrap.dedent(f"""
-                        <div class="print-page" style="page-break-after: always; box-sizing: border-box;">
-                        {t_html}
-                        </div>
-                        <div class="no-print" style="height: 30px; border-bottom: 1px dashed #ccc; margin-bottom: 30px;"></div>
-                    """)
+                    # Wrap with Page Break
+                    # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
+                    full_html += f"""
+<div class="print-page" style="page-break-after: always; box-sizing: border-box;">
+{t_html}
+</div>
+<div class="no-print" style="height: 30px; border-bottom: 1px dashed #ccc; margin-bottom: 30px;"></div>
+"""
                     prog_bar.progress((idx + 1) / len(targets))
                     
                 # CSS for Batch Print
@@ -469,7 +472,7 @@ elif menu == "Student View":
                     /* Page Setup */
                     @page {
                         size: A4;
-                        margin: 15mm;
+                        margin: 5mm 15mm 25mm 15mm; /* Top Right Bottom Left */
                     }
                     
                     table {
@@ -521,6 +524,7 @@ elif menu == "Student View":
                         display: block;
                         width: 100%;
                         z-index: 9999;
+                        margin-top: -20px;
                     }
                 }
                 </style>
