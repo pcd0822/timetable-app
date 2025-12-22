@@ -1,6 +1,7 @@
 import streamlit as st
 from modules.db_manager import DBManager
 import pandas as pd
+import textwrap
 
 # Page Config
 st.set_page_config(page_title="시간표 배정 프로그램", layout="wide")
@@ -413,12 +414,14 @@ elif menu == "Student View":
                         
                     # Wrap with Page Break
                     # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
-                    full_html += f"""
-<div class="print-page" style="page-break-after: always; box-sizing: border-box;">
-{t_html}
-</div>
-<div class="no-print" style="height: 30px; border-bottom: 1px dashed #ccc; margin-bottom: 30px;"></div>
-"""
+                    # Wrap with Page Break
+                    # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
+                    full_html += textwrap.dedent(f"""
+                        <div class="print-page" style="page-break-after: always; box-sizing: border-box;">
+                        {t_html}
+                        </div>
+                        <div class="no-print" style="height: 30px; border-bottom: 1px dashed #ccc; margin-bottom: 30px;"></div>
+                    """)
                     prog_bar.progress((idx + 1) / len(targets))
                     
                 # CSS for Batch Print
