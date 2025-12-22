@@ -386,29 +386,23 @@ elif menu == "Student View":
                 st.markdown("""
                 <style>
                 @media print {
-                    #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
-                    .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stAlert {display: none !important;}
-                    iframe {display: none !important;} 
-                    .no-print {display: none !important;}
-                    
-                    /* Hide Tab Headers but KEEP content */
-                    [data-baseweb="tab-list"] {display: none !important;}
-
-                    /* Hide Header Decoration Line */
-                    header, .stApp > header {
-                        display: none !important;
-                        opacity: 0 !important;
-                        visibility: hidden !important;
+                    /* NUCLEAR PRINT CSS: Hide everything, show only print-area */
+                    body * {
+                        visibility: hidden;
                     }
-                    header:before, header:after, .stApp > header:before, .stApp > header:after {
-                        display: none !important;
-                        content: none !important;
+                    #print-area, #print-area * {
+                        visibility: visible;
+                    }
+                    #print-area {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        z-index: 9999;
+                        margin: 0;
+                        padding: 0;
                     }
 
-                    /* Hide main titles unless it is our custom print title */
-                    h1, h2, h3, h4, h5, h6 {display: none !important;}
-                    h2.print-title {display: block !important;}
-                    
                     /* Page Setup */
                     @page {
                         size: A4;
@@ -426,26 +420,14 @@ elif menu == "Student View":
                         color: black !important;
                         -webkit-print-color-adjust: exact; 
                     }
-                    html, body, .stApp { 
-                        background-color: white !important; 
+                    html, body {
                         height: auto !important;
+                        background-color: white !important;
                         margin: 0 !important;
                         padding: 0 !important;
+                        overflow: visible !important;
                     }
                     
-                    /* Aggressively remove Streamlit container padding */
-                    .block-container, 
-                    [data-testid="stAppViewContainer"], 
-                    [data-testid="stHeader"], 
-                    [data-testid="stToolbar"],
-                    .main {
-                        padding: 0 !important;
-                        margin: 0 !important;
-                        padding-top: 0 !important;
-                        margin-top: 0 !important;
-                        max-width: none !important;
-                    }
-
                     /* Page Break Control */
                     .print-page {
                         page-break-after: always;
@@ -454,15 +436,6 @@ elif menu == "Student View":
                         position: relative;
                         padding-top: 0px; 
                         margin-top: 0px;
-                    }
-
-                    /* Absolute positioning to bypass hidden element spacers */
-                    #print-area {
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        z-index: 9999;
                     }
                 }
                 </style>
