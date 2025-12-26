@@ -771,24 +771,42 @@ elif menu == "Teacher View":
                             st.markdown("""
                             <style>
                             @media print {
-                                /* Hide Streamlit components */
-                                #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton, .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stDataFrame {display: none !important;}
-                                [data-testid="stAppViewContainer"] > .main {padding: 0 !important; margin: 0 !important;}
-                                .block-container {padding: 0 !important; margin: 0 !important;}
+                                /* Hide ALL Streamlit components and containers */
+                                body * {
+                                    visibility: hidden;
+                                }
+                                
+                                /* Define A4 Page */
+                                @page {
+                                    size: A4;
+                                    margin: 20mm;
+                                }
+                                
+                                /* Reveal ONLY our print area */
+                                #teacher-print-area, #teacher-print-area * {
+                                    visibility: visible;
+                                }
                                 
                                 #teacher-print-area {
-                                    position: absolute;
+                                    position: fixed;
                                     top: 0;
                                     left: 0;
                                     width: 100%;
-                                    z-index: 9999;
-                                    display: block !important;
+                                    margin: 0;
+                                    padding: 0;
                                     background-color: white;
-                                    padding: 20px;
+                                    z-index: 999999;
+                                }
+                                
+                                /* Clean up page breaks */
+                                html, body {
+                                    height: auto;
+                                    overflow: visible;
+                                    margin: 0 !important;
+                                    padding: 0 !important;
                                 }
                             }
                             #teacher-print-area { display: none; } /* Hide the duplicate print area on screen */
-                            @media print { #teacher-print-area { display: block !important; } }
                             </style>
                             """, unsafe_allow_html=True)
                             
