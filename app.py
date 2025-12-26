@@ -666,6 +666,64 @@ elif menu == "Teacher View":
                         if not stud_df.empty:
                             st.dataframe(stud_df)
                             st.caption(f"총 {len(stud_df)}명")
+                            
+                            # Print Feature for Student List
+                            with st.expander("🖨️ 명단 인쇄 미리보기", expanded=True):
+                                # Generate HTML for the list
+                                s_html = stud_df.to_html(index=False, classes="student-list", border=1, justify="center")
+                                
+                                # Custom Styling for List
+                                s_html = s_html.replace('<table border="1" class="dataframe student-list">', '<table style="width:100%; border-collapse: collapse; text-align: center; font-family: Malgun Gothic, sans-serif;">')
+                                s_html = s_html.replace('<thead>', '<thead style="background-color: #f2f2f2;">')
+                                s_html = s_html.replace('<th>', '<th style="padding: 10px; border: 1px solid #000;">')
+                                s_html = s_html.replace('<td>', '<td style="padding: 8px; border: 1px solid #000;">')
+                                
+                                print_title = f"{sel_subject} 수강 대상 학생 명단 ({selected_teacher} 선생님)"
+                                
+                                full_print_html = f"""
+                                <div style="text-align: center; margin-bottom: 20px;">
+                                    <h2>{print_title}</h2>
+                                    <p>총 {len(stud_df)}명</p>
+                                </div>
+                                {s_html}
+                                """
+                                
+                                # CSS for Print
+                                st.markdown("""
+                                <style>
+                                @media print {
+                                    /* Hide Streamlit components */
+                                    #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton, .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stDataFrame {display: none !important;}
+                                    [data-testid="stAppViewContainer"] > .main {padding: 0 !important; margin: 0 !important;}
+                                    .block-container {padding: 0 !important; margin: 0 !important;}
+                                    
+                                    #teacher-print-area {
+                                        position: absolute;
+                                        top: 0;
+                                        left: 0;
+                                        width: 100%;
+                                        z-index: 9999;
+                                        display: block !important;
+                                        background-color: white;
+                                        padding: 20px;
+                                    }
+                                }
+                                /* Hide print area in screen view if desired, or show it inside expander */
+                                /* We show it inside expander so user sees what will be printed */
+                                </style>
+                                """, unsafe_allow_html=True)
+                                
+                                # Render Print Area
+                                st.markdown(f'<div id="teacher-print-area">{full_print_html}</div>', unsafe_allow_html=True)
+                                
+                                # Print Button
+                                import streamlit.components.v1 as components
+                                components.html("""
+                                <div style="text-align: center; margin-top: 10px;">
+                                    <button onclick="window.parent.print()" style="background-color: #4CAF50; border: none; color: white; padding: 10px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 4px;">🖨️ 인쇄하기</button>
+                                </div>
+                                """, height=60)
+
                         else:
                             st.info("해당 수업을 듣는 학생이 없습니다.")
                     except Exception as e:
