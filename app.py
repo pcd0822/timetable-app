@@ -2,6 +2,9 @@ import streamlit as st
 from modules.db_manager import DBManager
 import pandas as pd
 import textwrap
+import importlib
+import modules.logic
+importlib.reload(modules.logic)
 
 # Page Config
 st.set_page_config(page_title="시간표 배정 프로그램", layout="wide")
