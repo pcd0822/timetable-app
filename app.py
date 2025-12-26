@@ -16,7 +16,7 @@ if 'db' not in st.session_state:
 # Sidebar
 st.sidebar.title("Navigation")
 menu = st.sidebar.radio("Go to", 
-    ["Data Upload", "Teacher Assignment", "Timetable Setup", "Room Assignment", "Student View", "Teacher View"])
+    ["Data Upload", "Teacher Assignment", "Timetable Setup", "Room Assignment", "Student View", "Teacher View", "Environment Setup"])
 
 st.sidebar.divider()
 if st.sidebar.button("🔄 데이터 새로고침 (Refresh)"):
@@ -330,8 +330,11 @@ elif menu == "Student View":
                 if schedule_df is not None and not schedule_df.empty:
                     st.success(f"학번: {sid_input} 이름: {s_name} 시간표")
                     
+                    # Load Period Times for display
+                    p_times = logic.load_period_times(st.session_state.db)
+
                     # Transform to Grid (Now returns HTML string with Header)
-                    timetable_html = logic.format_student_timetable_grid(schedule_df, student_info={'id': sid_input, 'name': s_name})
+                    timetable_html = logic.format_student_timetable_grid(schedule_df, student_info={'id': sid_input, 'name': s_name, 'period_times': p_times})
                     
                     # Improved Print Button using Components
                     import streamlit.components.v1 as components
@@ -482,15 +485,21 @@ elif menu == "Student View":
                 # Progress bar
                 prog_bar = st.progress(0)
                 
+                # Pre-load period times
+                p_times_batch = logic.load_period_times(st.session_state.db)
+                
                 for idx, student in enumerate(targets):
                     sid = student['학번']
                     name = student['이름']
                     
                     sch_df, _, _ = logic.generate_student_timetable(st.session_state.db, sid, week=target_week_val)
                     
+                    # Load Period Times (Cached or fetch once ideally, but fetch inside loop is safe for low volume)
+                    # Optimization: Move loading outside loop
+                    
                     # Generate HTML Grid with Header
                     if sch_df is not None and not sch_df.empty:
-                        t_html = logic.format_student_timetable_grid(sch_df, student_info={'id': sid, 'name': name})
+                        t_html = logic.format_student_timetable_grid(sch_df, student_info={'id': sid, 'name': name, 'period_times': p_times_batch})
                     else:
                         t_html = f"<div style='text-align:center; padding: 20px;'><h3>{name} ({sid})</h3><p>배정된 시간표 없음</p></div>"
                         
@@ -665,3 +674,35 @@ elif menu == "Teacher View":
                 st.info("배정된 시간표가 없습니다.")
     else:
         st.warning("교사 데이터가 없습니다.")
+
+elif menu == "Environment Setup":
+    st.header("환경 설정 (Environment Setup)")
+    
+    st.subheader("교시별 시간 설정")
+    st.info("시간표 출력 시 각 교시 아래에 표시될 시간 범위를 설정합니다.")
+    
+    import modules.logic as logic
+    
+    # Load current settings from DB
+    current_times = logic.load_period_times(st.session_state.db)
+    
+    with st.form("period_time_form"):
+        updated_times = {}
+        cols = st.columns(2)
+        
+        # Display inputs for 1~7 periods
+        for i in range(1, 8):
+            # Alternating columns
+            with cols[(i-1)%2]:
+                val = st.text_input(f"{i}교시 시간", value=current_times.get(i, ""), placeholder="예: 09:00~09:50")
+                updated_times[i] = val
+        
+        st.markdown("---")
+        submitted = st.form_submit_button("설정 저장 (Save Settings)")
+        
+        if submitted:
+            success = logic.save_period_times(st.session_state.db, updated_times)
+            if success:
+                st.success("설정이 저장되었습니다. 시간표 조회 시 반영됩니다.")
+            else:
+                st.error("설정 저장 중 오류가 발생했습니다.")
