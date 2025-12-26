@@ -147,7 +147,8 @@ elif menu == "Timetable Setup":
         with col_w1:
             s_week = st.number_input("주차 (Week)", min_value=1, value=1, step=1)
         with col_w2:
-            s_date_str = st.text_input("날짜 (예: 11/04)", help="선택사항. 인쇄 시 표시됩니다.")
+            s_date_obj = st.date_input("날짜 선택", value=None, help="선택사항. 인쇄 시 표시됩니다.")
+            s_date_str = s_date_obj.strftime("%m/%d") if s_date_obj else ""
         with col_w3:
             st.empty()
 
