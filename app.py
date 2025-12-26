@@ -91,11 +91,12 @@ if menu == "Data Upload":
 elif menu == "Teacher Assignment":
     st.header("교사 및 과목 배정")
     
-    from modules.logic import get_unique_subjects, get_unique_classes, save_teacher_assignment, get_teacher_assignments
-
+    # Use module access directly to avoid stale imports
+    import modules.logic as logic
+    
     # 1. Fetch Options
-    subjects = get_unique_subjects(st.session_state.db)
-    classes_options = get_unique_classes(st.session_state.db)
+    subjects = logic.get_unique_subjects(st.session_state.db)
+    classes_options = logic.get_unique_classes(st.session_state.db)
 
     if not subjects:
         st.warning("등록된 학생 데이터가 없거나 미도달 과목이 파싱되지 않았습니다. 먼저 'Data Upload'를 진행하세요.")
@@ -117,7 +118,7 @@ elif menu == "Teacher Assignment":
             
             if submitted:
                 if t_name and sub_select and selected_classes:
-                    success = save_teacher_assignment(st.session_state.db, sub_select, t_name, selected_classes, room_input)
+                    success = logic.save_teacher_assignment(st.session_state.db, sub_select, t_name, selected_classes, room_input)
                     if success:
                         st.success(f"{t_name} 교사 배정 완료!")
                         st.rerun() # Refresh to show in table
@@ -127,7 +128,7 @@ elif menu == "Teacher Assignment":
     # 2. View Current Assignments
     st.divider()
     st.subheader("현재 배정 현황")
-    assignments_df = get_teacher_assignments(st.session_state.db)
+    assignments_df = logic.get_teacher_assignments(st.session_state.db)
     if not assignments_df.empty:
         st.dataframe(assignments_df)
     else:
@@ -137,9 +138,9 @@ elif menu == "Teacher Assignment":
 elif menu == "Timetable Setup":
     st.header("전체 시간표 편성")
     
-    from modules.logic import get_unique_subjects, add_timetable_slot, load_timetable, check_conflicts, delete_timetable_slot
+    import modules.logic as logic
 
-    subjects = get_unique_subjects(st.session_state.db)
+    subjects = logic.get_unique_subjects(st.session_state.db)
     days = ["월", "화", "수", "목", "금"]
     periods = range(1, 8) # 1~7교시
 
@@ -165,18 +166,18 @@ elif menu == "Timetable Setup":
             
         if st.button("배정 추가"):
             # Check Conflicts
-            conflicts = check_conflicts(st.session_state.db, s_week, s_day, s_period, s_subject)
+            conflicts = logic.check_conflicts(st.session_state.db, s_week, s_day, s_period, s_subject)
             if conflicts:
                 st.warning(f"⚠️ 충돌 경고 ({s_week}주차 {s_day} {s_period}교시)! 다음 학생들이 이 시간에 다른 과목 수업이 있습니다: {', '.join(conflicts)}")
                 if st.checkbox("충돌 무시하고 저장하시겠습니까?"):
-                    success, msg = add_timetable_slot(st.session_state.db, s_week, s_date_str, s_day, s_period, s_subject)
+                    success, msg = logic.add_timetable_slot(st.session_state.db, s_week, s_date_str, s_day, s_period, s_subject)
                     if success:
                         st.success(msg)
                         st.rerun()
                     else:
                         st.error(msg)
             else:
-                success, msg = add_timetable_slot(st.session_state.db, s_week, s_date_str, s_day, s_period, s_subject)
+                success, msg = logic.add_timetable_slot(st.session_state.db, s_week, s_date_str, s_day, s_period, s_subject)
                 if success:
                     st.success(msg)
                     st.rerun()
@@ -185,7 +186,7 @@ elif menu == "Timetable Setup":
 
     # 2. View Timetable (List & Grid)
     st.divider()
-    tt_df = load_timetable(st.session_state.db)
+    tt_df = logic.load_timetable(st.session_state.db)
     
     if not tt_df.empty:
         # Sort for display
@@ -227,7 +228,8 @@ elif menu == "Timetable Setup":
                 st.text(f"{week_info} {row['Day']}요일 {row['Period']}교시 - {row['Subject']} {date_info}")
             with col_b:
                 if st.button("삭제", key=f"del_{i}"):
-                     delete_timetable_slot(st.session_state.db, row['Week'], row['Day'], row['Period'], row['Subject'])
+                     # HERE was the error. Using logic.delete_timetable_slot ensures we use the reloaded module
+                     logic.delete_timetable_slot(st.session_state.db, row['Week'], row['Day'], row['Period'], row['Subject'])
                      st.rerun()
     else:
         st.info("편성된 시간표가 없습니다.")
@@ -237,9 +239,9 @@ elif menu == "Room Assignment":
     st.header("강의실 배정 (관리)")
     st.info("교사-과목 배정 내역에서 강의실 정보를 수정합니다.")
     
-    from modules.logic import get_teacher_assignments
+    import modules.logic as logic
     
-    df = get_teacher_assignments(st.session_state.db)
+    df = logic.get_teacher_assignments(st.session_state.db)
     if not df.empty:
         # Use data editor to allow inline editing of 'Room'
         edited_df = st.data_editor(df, num_rows="dynamic", key="room_editor")
@@ -258,10 +260,10 @@ elif menu == "Room Assignment":
 elif menu == "Student View":
     st.header("학생 시간표 조회 및 인쇄")
     
-    from modules.logic import generate_student_timetable, format_student_timetable_grid, get_students_in_class, load_timetable
+    import modules.logic as logic
     
     # Check available weeks
-    tt_df = load_timetable(st.session_state.db)
+    tt_df = logic.load_timetable(st.session_state.db)
     available_weeks = [1]
     if not tt_df.empty and 'Week' in tt_df.columns:
         available_weeks = sorted(tt_df['Week'].astype(int).unique())
@@ -284,13 +286,13 @@ elif menu == "Student View":
                 if ver_week != "전체":
                     target_week = int(ver_week.replace("주차", ""))
                     
-                schedule_df, msg, s_name = generate_student_timetable(st.session_state.db, sid_input, week=target_week)
+                schedule_df, msg, s_name = logic.generate_student_timetable(st.session_state.db, sid_input, week=target_week)
                 
                 if schedule_df is not None and not schedule_df.empty:
                     st.success(f"학번: {sid_input} 이름: {s_name} 시간표")
                     
                     # Transform to Grid (Now returns HTML string with Header)
-                    timetable_html = format_student_timetable_grid(schedule_df, student_info={'id': sid_input, 'name': s_name})
+                    timetable_html = logic.format_student_timetable_grid(schedule_df, student_info={'id': sid_input, 'name': s_name})
                     
                     # Improved Print Button using Components
                     import streamlit.components.v1 as components
@@ -424,7 +426,7 @@ elif menu == "Student View":
             batch_week_sel = st.selectbox("출력할 주차", week_opts_batch)
             
         if st.button("일괄 조회 및 인쇄 미리보기"):
-            targets = get_students_in_class(st.session_state.db, grade_input, class_input)
+            targets = logic.get_students_in_class(st.session_state.db, grade_input, class_input)
             
             # Filter Week
             target_week_val = None
@@ -445,13 +447,13 @@ elif menu == "Student View":
                     sid = student['학번']
                     name = student['이름']
                     
-                    sch_df, _, _ = generate_student_timetable(st.session_state.db, sid, week=target_week_val)
+                    sch_df, _, _ = logic.generate_student_timetable(st.session_state.db, sid, week=target_week_val)
                     
                     # Generate HTML Grid with Header
                     if sch_df is not None and not sch_df.empty:
-                        t_html = format_student_timetable_grid(sch_df, student_info={'id': sid, 'name': name})
+                        t_html = logic.format_student_timetable_grid(sch_df, student_info={'id': sid, 'name': name})
                     else:
-                        t_html = f"<div style='text-align:center; padding: 20px;'><h3>{name} ({sid})</h3>배정된 시간표 없음</div>"
+                        t_html = f"<div style='text-align:center; padding: 20px;'><h3>{name} ({sid})</h3><p>배정된 시간표 없음</p></div>"
                         
                     # Wrap with Page Break
                     full_html += f"""
@@ -582,16 +584,16 @@ elif menu == "Student View":
 elif menu == "Teacher View":
     st.header("교사별 시간표 조회")
     
-    from modules.logic import get_teacher_assignments, get_teacher_schedule
+    import modules.logic as logic
     
-    teachers_df = get_teacher_assignments(st.session_state.db)
+    teachers_df = logic.get_teacher_assignments(st.session_state.db)
     if not teachers_df.empty:
         teacher_list = teachers_df['TeacherName'].unique()
         selected_teacher = st.selectbox("교사 선택", teacher_list)
         
         if selected_teacher:
             st.subheader(f"{selected_teacher} 선생님 시간표")
-            t_schedule = get_teacher_schedule(st.session_state.db, selected_teacher)
+            t_schedule = logic.get_teacher_schedule(st.session_state.db, selected_teacher)
             if not t_schedule.empty:
                 st.table(t_schedule)
                 
@@ -610,7 +612,7 @@ elif menu == "Teacher View":
                         sel_subject = selected_slot_str.split('(')[1].replace(')', '')
                         
                         from modules.logic import get_students_for_class_slot
-                        stud_df = get_students_for_class_slot(st.session_state.db, selected_teacher, sel_subject)
+                        stud_df = logic.get_students_for_class_slot(st.session_state.db, selected_teacher, sel_subject)
                         
                         st.write(f"**[{sel_subject}] 수강 대상 학생 명단**")
                         if not stud_df.empty:
