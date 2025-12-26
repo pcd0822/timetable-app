@@ -503,8 +503,21 @@ def format_student_timetable_grid(schedule_df, student_info=None):
 </thead>
 <tbody>
 """
+        # Load period times (passed via student_info or use defaults)
+        p_times = student_info.get('period_times', {}) if student_info else {}
+        # Fill missing with standard defaults just in case
+        defaults = {1:"08:40~09:30", 2:"09:40~10:30", 3:"10:40~11:30", 4:"11:40~12:30", 5:"13:30~14:20", 6:"14:30~15:20", 7:"15:30~16:20"}
+        for k, v in defaults.items():
+            if k not in p_times: p_times[k] = v
+
         for p in periods:
-            table_html += f"<tr><td style='border: 1px solid #ddd; font-weight:bold; background-color:#fafafa;'>{p}교시</td>"
+            # Format Period Label with Time
+            time_range = p_times.get(p, "")
+            p_label = f"{p}교시"
+            if time_range:
+                p_label += f"<br><span style='font-size:0.8em; font-weight:normal; color:#555;'>({time_range})</span>"
+            
+            table_html += f"<tr><td style='border: 1px solid #ddd; font-weight:bold; background-color:#fafafa;'>{p_label}</td>"
             for d in days:
                 cell_content = ""
                 try:
@@ -573,3 +586,54 @@ def get_students_in_class(db_manager, grade, class_num):
     targets.sort(key=lambda x: x['학번'])
     
     return targets
+
+def load_period_times(db_manager):
+    """
+    Loads period times from 'Settings_PeriodTimes' sheet.
+    Returns dict {period_int: time_str}
+    """
+    defaults = {
+        1: "08:40~09:30",
+        2: "09:40~10:30",
+        3: "10:40~11:30",
+        4: "11:40~12:30",
+        5: "13:30~14:20",
+        6: "14:30~15:20",
+        7: "15:30~16:20"
+    }
+    
+    try:
+        df = db_manager.load_dataframe("Settings_PeriodTimes")
+        if df.empty:
+            return defaults
+            
+        times = {}
+        # Expected cols: Period, TimeRange
+        for _, row in df.iterrows():
+            try:
+                p = int(row['Period'])
+                t = str(row['TimeRange'])
+                times[p] = t
+            except:
+                continue
+        
+        # Merge with defaults to ensure all keys exist if partial data
+        for k, v in defaults.items():
+            if k not in times:
+                times[k] = v
+                
+        return times
+    except Exception:
+        return defaults
+
+def save_period_times(db_manager, times_dict):
+    """
+    Saves period times dict to 'Settings_PeriodTimes' sheet.
+    """
+    data = []
+    for p in sorted(times_dict.keys()):
+        data.append({'Period': p, 'TimeRange': times_dict[p]})
+        
+    df = pd.DataFrame(data)
+    return db_manager.save_dataframe("Settings_PeriodTimes", df)
+
