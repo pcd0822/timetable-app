@@ -487,20 +487,37 @@ def format_student_timetable_grid(schedule_df, student_info=None):
             aggfunc=lambda x: '<br><hr style="margin:2px 0;">'.join(x)
         )
         
-        # Reindex to ensure 1-7 periods and Mon-Fri days exist
-        pivot_table = pivot_table.reindex(index=periods, columns=days)
-        
-        # Fill NaN with empty string
-        pivot_table = pivot_table.fillna("")
-        
-        # Convert to HTML
-        table_html = pivot_table.to_html(escape=False, classes="timetable-grid")
-        
-        # Inject styling (using simple replacements for simplicity)
-        table_html = table_html.replace('<table border="1" class="dataframe timetable-grid">', '<table style="width:100%; border-collapse: collapse; text-align: center; margin-bottom: 30px;">')
-        table_html = table_html.replace('<thead>', '<thead style="background-color: #f2f2f2;">')
-        table_html = table_html.replace('<th>', '<th style="border: 1px solid #000; padding: 8px; text-align: center;">')
-        table_html = table_html.replace('<td>', '<td style="border: 1px solid #000; padding: 8px; height: 50px; vertical-align: middle;">')
+        # Generte HTML Table manually to ensure correct layout
+        table_html = """
+<table style="width:100%; border-collapse: collapse; text-align: center; border: 1px solid #ddd; color: black; margin-bottom: 30px;">
+  <thead>
+    <tr style="background-color: #f2f2f2; border: 1px solid #ddd;">
+      <th style="padding: 10px; border: 1px solid #ddd; width: 10%;">교시</th>
+      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">월</th>
+      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">화</th>
+      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">수</th>
+      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">목</th>
+      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">금</th>
+    </tr>
+  </thead>
+  <tbody>
+"""
+        for p in periods:
+            table_html += f"<tr><td style='border: 1px solid #ddd; font-weight:bold; background-color:#fafafa;'>{p}교시</td>"
+            for d in days:
+                cell_content = ""
+                try:
+                    if p in pivot_table.index and d in pivot_table.columns:
+                        val = pivot_table.loc[p, d]
+                        if pd.notna(val):
+                            cell_content = val
+                except KeyError:
+                    pass
+                
+                table_html += f"<td style='padding: 8px; border: 1px solid #ddd; vertical-align: middle; height: 80px;'>{cell_content}</td>"
+            table_html += "</tr>"
+            
+        table_html += "</tbody></table>"
         
         full_html += f"""
 <div class="week-block" style="margin-bottom: 40px; page-break-inside: avoid;">
