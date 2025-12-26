@@ -100,52 +100,73 @@ def get_teacher_assignments(db_manager):
 def load_timetable(db_manager):
     return db_manager.load_dataframe("Timetable")
 
-def add_timetable_slot(db_manager, day, period, subject):
+def add_timetable_slot(db_manager, week, date, day, period, subject):
     """
-    Adds a subject to a specific Day/Period.
-    Structure: [Day, Period, Subject]
+    Adds a subject to a specific Week, Day, Period.
+    Structure: [Week, Date, Day, Period, Subject]
     """
     df = db_manager.load_dataframe("Timetable")
     if df.empty:
-        df = pd.DataFrame(columns=['Day', 'Period', 'Subject'])
+        df = pd.DataFrame(columns=['Week', 'Date', 'Day', 'Period', 'Subject'])
         
+    # Ensure columns exist (migration)
+    if 'Week' not in df.columns: df['Week'] = 1
+    if 'Date' not in df.columns: df['Date'] = ""
+
     # Check if exactly same entry exists to prevent dupes
-    # (Day, Period, Subject) should be unique
+    # (Week, Day, Period, Subject) should be unique
     exclude = df[
+        (df['Week'].astype(str) == str(week)) &
         (df['Day'] == day) & 
         (df['Period'] == period) & 
         (df['Subject'] == subject)
     ]
     if not exclude.empty:
-        return False, "이미 해당 시간에 해당 과목이 배정되어 있습니다."
+        return False, "이미 해당 주차, 요일, 교시에 해당 과목이 배정되어 있습니다."
 
-    new_row = pd.DataFrame([{'Day': day, 'Period': period, 'Subject': subject}])
+    new_row = pd.DataFrame([{'Week': week, 'Date': date, 'Day': day, 'Period': period, 'Subject': subject}])
     df = pd.concat([df, new_row], ignore_index=True)
     
     success = db_manager.save_dataframe("Timetable", df)
     return success, "저장 완료"
 
-def delete_timetable_slot(db_manager, day, period, subject):
+def delete_timetable_slot(db_manager, week, day, period, subject):
     df = db_manager.load_dataframe("Timetable")
     if df.empty:
         return
     
+    # Ensure columns
+    if 'Week' not in df.columns: 
+        # If deleting from legacy data (no week), assume week 1?? 
+        # Or just match Day/Period/Subject?
+        # Let's matching stricter if week is provided.
+        # But for safety, match Week if column exists.
+        pass
+
     condition = (df['Day'] == day) & (df['Period'] == period) & (df['Subject'] == subject)
+    if 'Week' in df.columns:
+        condition = condition & (df['Week'].astype(str) == str(week))
+        
     df = df[~condition]
     db_manager.save_dataframe("Timetable", df)
 
-def check_conflicts(db_manager, day, period, new_subject):
+def check_conflicts(db_manager, week, day, period, new_subject):
     """
-    Checks if 'new_subject' at (Day, Period) conflicts with other subjects 
+    Checks if 'new_subject' at (Week, Day, Period) conflicts with other subjects 
     already scheduled at that time for any student.
     Returns: List of student names/IDs who have overlapping subjects.
     """
-    # 1. Get other subjects at this Day/Period
+    # 1. Get other subjects at this Week/Day/Period
     timetable_df = load_timetable(db_manager)
     if timetable_df.empty:
         return []
-        
+    
+    # Ensure Week column
+    if 'Week' not in timetable_df.columns:
+        timetable_df['Week'] = 1 # Default legacy to Week 1
+
     others = timetable_df[
+        (timetable_df['Week'].astype(str) == str(week)) &
         (timetable_df['Day'] == day) & 
         (timetable_df['Period'] == period) & 
         (timetable_df['Subject'] != new_subject)
@@ -164,8 +185,6 @@ def check_conflicts(db_manager, day, period, new_subject):
     # Iterate students
     for _, row in students_df.iterrows():
         # parsed_subjects is user string "Sub1, Sub2" or list?
-        # In Load Logic, we saved it as comma-joined string.
-        # We need to re-parse or use 'in'.
         sub_str = str(row.get('parsed_subjects', ''))
         student_subs = [s.strip() for s in sub_str.split(',') if s.strip()]
         
@@ -181,10 +200,10 @@ def check_conflicts(db_manager, day, period, new_subject):
     return conflicting_students
 
 
-def generate_student_timetable(db_manager, student_id):
+def generate_student_timetable(db_manager, student_id, week=None):
     """
     Generates personal timetable for a student.
-    Returns DataFrame: [Day, Period, Subject, Teacher, Room]
+    Returns DataFrame: [Week, Date, Day, Period, Subject, Teacher, Room]
     """
     # 1. Get Student Info
     students_df = db_manager.load_dataframe("Students")
@@ -196,9 +215,7 @@ def generate_student_timetable(db_manager, student_id):
         return None, "해당 학번의 학생을 찾을 수 없습니다.", None
         
     row = student.iloc[0]
-    if row.get('is_exception'): # Boolean check or check string 'TRUE'?
-        # Based on data_loader, it's boolean. But loading from Sheets makes it int/bool?
-        # Sheets might return TRUE/FALSE string or 1/0.
+    if row.get('is_exception'): 
         is_exc = row.get('is_exception')
         if is_exc == True or str(is_exc).upper() == 'TRUE':
              return None, "예외처리된 학생이므로 시간표가 없습니다.", None
@@ -213,35 +230,41 @@ def generate_student_timetable(db_manager, student_id):
     # Student Class Info
     s_grade = str(row['학년'])
     s_class = str(row['반'])
-    full_class = f"{s_grade}-{s_class}" # Matches Teacher Assignment format "1-1"
+    full_class = f"{s_grade}-{s_class}"
     
     # 2. Get Master Timetable
     timetable_df = load_timetable(db_manager)
     if timetable_df.empty:
          return pd.DataFrame(), "전체 시간표가 아직 편성되지 않았습니다.", None
          
+    # Ensure Week/Date
+    if 'Week' not in timetable_df.columns: timetable_df['Week'] = 1
+    if 'Date' not in timetable_df.columns: timetable_df['Date'] = ""
+
+    # Filter by Week if requested
+    if week:
+        timetable_df = timetable_df[timetable_df['Week'].astype(str) == str(week)]
+
     # 3. Get Teacher Assignments
     teachers_df = db_manager.load_dataframe("Teachers")
     
     personal_schedule = []
     
     for _, slot in timetable_df.iterrows():
+        t_week = slot['Week']
+        t_date = slot['Date']
         t_day = slot['Day']
         t_period = slot['Period']
         t_subject = slot['Subject']
         
         # Only relevant if student failed this subject
         if t_subject in failed_subjects:
-            # Find Teacher for this Subject AND Student's Class
-            # teachers_df columns: Subject, TeacherName, AssignedClasses, Room
             matched_teacher = "미배정"
             matched_room = ""
             
             if not teachers_df.empty:
                 candidates = teachers_df[teachers_df['Subject'] == t_subject]
                 for _, t_row in candidates.iterrows():
-                    # assigned_classes is "['1-1', '1-2']" string formatting from list str?
-                    # Or "1-1,1-2" string? In 'save_teacher_assignment' we did: ','.join(map(str, classes))
                     assigned_str = str(t_row['AssignedClasses'])
                     assigned_list = [c.strip() for c in assigned_str.split(',')]
                     
@@ -251,6 +274,8 @@ def generate_student_timetable(db_manager, student_id):
                         break
             
             personal_schedule.append({
+                '주차': t_week,
+                '날짜': t_date,
                 '요일': t_day,
                 '교시': t_period,
                 '과목': t_subject,
@@ -259,18 +284,23 @@ def generate_student_timetable(db_manager, student_id):
             })
             
     if not personal_schedule:
-        return pd.DataFrame(), "배정된 시간표가 없습니다. (전체 시간표에 해당 과목이 없거나 교사 배정이 누락됨)", None
+        return pd.DataFrame(), "배정된 시간표가 없습니다.", None
         
-    # Sort by Day/Period
-    # Custom Sort Order for Days
+    # Sort
     day_order = {'월': 1, '화': 2, '수': 3, '목': 4, '금': 5}
     
     schedule_df = pd.DataFrame(personal_schedule)
     schedule_df['DayKey'] = schedule_df['요일'].map(day_order)
     schedule_df['PeriodKey'] = schedule_df['교시'].astype(int)
-    
-    schedule_df = schedule_df.sort_values(['DayKey', 'PeriodKey'])
-    schedule_df = schedule_df[['요일', '교시', '과목', '담당교사', '장소']]
+    # Sort by Week -> Day -> Period
+    # Assuming Week is int? or convert to int
+    try:
+        schedule_df['WeekKey'] = schedule_df['주차'].astype(int)
+    except:
+        schedule_df['WeekKey'] = 1 # Fallback
+
+    schedule_df = schedule_df.sort_values(['WeekKey', 'DayKey', 'PeriodKey'])
+    schedule_df = schedule_df[['주차', '날짜', '요일', '교시', '과목', '담당교사', '장소']]
     
     return schedule_df, "생성 완료", row.get('이름', '')
 
@@ -294,7 +324,11 @@ def get_teacher_schedule(db_manager, teacher_name):
     timetable_df = load_timetable(db_manager)
     if timetable_df.empty:
          return pd.DataFrame()
-         
+
+    # Ensure columns
+    if 'Week' not in timetable_df.columns: timetable_df['Week'] = 1
+    if 'Date' not in timetable_df.columns: timetable_df['Date'] = ""
+          
     teacher_schedule = timetable_df[timetable_df['Subject'].isin(my_subjects)].copy()
     
     # Add Room info?
@@ -307,9 +341,14 @@ def get_teacher_schedule(db_manager, teacher_name):
     day_order = {'월': 1, '화': 2, '수': 3, '목': 4, '금': 5}
     teacher_schedule['DayKey'] = teacher_schedule['Day'].map(day_order)
     teacher_schedule['PeriodKey'] = teacher_schedule['Period'].astype(int)
-    teacher_schedule = teacher_schedule.sort_values(['DayKey', 'PeriodKey'])
+    try:
+        teacher_schedule['WeekKey'] = teacher_schedule['Week'].astype(int)
+    except:
+        teacher_schedule['WeekKey'] = 1
+
+    teacher_schedule = teacher_schedule.sort_values(['WeekKey', 'DayKey', 'PeriodKey'])
     
-    return teacher_schedule[['Day', 'Period', 'Subject', '장소']]
+    return teacher_schedule[['Week', 'Date', 'Day', 'Period', 'Subject', '장소']]
 
 def get_students_for_class_slot(db_manager, teacher_name, subject, day=None, period=None):
     """
@@ -381,10 +420,17 @@ def format_student_timetable_grid(schedule_df, student_info=None):
     if student_info:
         sid = student_info.get('id', '')
         name = student_info.get('name', '')
+        # Check if single week?
+        week_label = ""
+        if '주차' in schedule_df.columns:
+            u_weeks = schedule_df['주차'].unique()
+            if len(u_weeks) == 1:
+                week_label = f"({u_weeks[0]}주차)"
+
         header_html = f"""
 <div style="width: 100%; margin-bottom: 10px; font-family: 'Malgun Gothic', dotum, sans-serif;">
 <div style="text-align: center; margin-bottom: 10px;">
-<h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표</h2>
+<h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표 {week_label}</h2>
 </div>
 <div style="text-align: right; font-weight: bold; font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px;">
 <span style="margin-right: 30px;">학번 : {sid}</span>
@@ -394,20 +440,22 @@ def format_student_timetable_grid(schedule_df, student_info=None):
 """
     
     # Create a composite text for the cell
-
-    # Create a composite text for the cell
     # Use HTML breaks <br>
     def format_cell(row):
         # 1. Subject (Bold)
         txt = f"<b>{row['과목']}</b>"
         
-        # 2. Details (Smaller font)
+        # 2. Date (if exists)
+        if '날짜' in row and pd.notna(row['날짜']) and str(row['날짜']).strip() != "":
+            txt += f"<br><span style='font-size:0.8em; color:#0066cc;'>({row['날짜']})</span>"
+            
+        # 3. Details (Smaller font)
         details = ""
         if row['담당교사'] and row['담당교사'] != "미배정":
-            details += f"<br><span style='font-size:0.9em; color:#555;'>교사명: {row['담당교사']}</span>"
+            details += f"<br><span style='font-size:0.9em; color:#555;'>{row['담당교사']}</span>"
             
         if row['장소']:
-            details += f"<br><span style='font-size:0.9em; color:#555;'>교실: {str(row['장소'])}</span>"
+            details += f"<br><span style='font-size:0.9em; color:#555;'>{str(row['장소'])}</span>"
         
         return txt + details
 
@@ -417,11 +465,14 @@ def format_student_timetable_grid(schedule_df, student_info=None):
     # Ensure '교시' is int for correct reindexing
     schedule_df['교시'] = schedule_df['교시'].astype(int)
     
+    # If multiple weeks present, this Pivot might stack them.
+    # It's better if the caller filters by Week ONE by ONE if they want clear grids.
+    # But if mixed, we stack.
     pivot_df = schedule_df.pivot_table(
         index='교시', 
         columns='요일', 
         values='Cell', 
-        aggfunc=lambda x: '<br><hr style="margin:2px 0;"><br>'.join(x) # Separator for conflicts
+        aggfunc=lambda x: '<br><hr style="margin:2px 0;"><br>'.join(x) # Separator for conflicts/multiple weeks
     )
     
     # Reindex
