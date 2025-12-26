@@ -28,7 +28,7 @@ else:
 
 menu = st.sidebar.radio("Go to", menu_options)
 
-st.sidebar.divider()
+
 
 # Share Modal Logic
 @st.dialog("시간표 공유 링크 생성")
