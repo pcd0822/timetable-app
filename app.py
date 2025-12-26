@@ -30,14 +30,55 @@ menu = st.sidebar.radio("Go to", menu_options)
 
 st.sidebar.divider()
 
+# Share Modal Logic
+@st.dialog("시간표 공유 링크 생성")
+def share_modal():
+    st.write("아래 링크를 복사하여 학생이나 선생님에게 공유하세요.")
+    st.info("로그인 없이 바로 시간표를 조회할 수 있는 링크입니다.")
+    
+    # JavaScript to get current URL and append query param
+    import streamlit.components.v1 as components
+    
+    # We use a trick to get the URL from client side
+    # We render an input box (readonly) and a button
+    js_code = """
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <input type="text" id="share_link_input" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;" readonly>
+        <button onclick="copyLink()" style="width: 100%; padding: 10px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">📋 링크 복사하기 (Copy Link)</button>
+        <p id="copy_status" style="margin: 0; color: green; font-size: 0.9em; height: 1.2em;"></p>
+    </div>
+
+    <script>
+        // Get base URL (origin + pathname)
+        const baseUrl = window.location.origin + window.location.pathname;
+        const shareUrl = baseUrl.split('?')[0] + "?mode=share"; // Remove existing params and add mode=share
+        
+        // Set input value
+        document.getElementById("share_link_input").value = shareUrl;
+
+        function copyLink() {
+            const copyText = document.getElementById("share_link_input");
+            copyText.select();
+            copyText.setSelectionRange(0, 99999); // For mobile devices
+
+            navigator.clipboard.writeText(copyText.value).then(() => {
+                document.getElementById("copy_status").innerText = "✅ 링크가 복사되었습니다!";
+                setTimeout(() => {
+                    document.getElementById("copy_status").innerText = "";
+                }, 3000);
+            }).catch(err => {
+                document.getElementById("copy_status").innerText = "❌ 복사 실패 (보안 설정 확인 필요)";
+                console.error("Copy failed", err);
+            });
+        }
+    </script>
+    """
+    components.html(js_code, height=150)
+
 # Share Button (Only in Normal Mode)
 if mode != "share":
     if st.sidebar.button("🔗 시간표 공유하기 (Share Link)"):
-        # Generate link (Assuming localhost or deployed URL)
-        # We can't easily get the absolute URL in Streamlit, but we can instruct the user.
-        # Or just append ?mode=share to the current URL.
-        st.sidebar.code("?mode=share", language="text")
-        st.sidebar.caption("위 텍스트를 현재 주소 뒤에 붙여서 공유하세요.\n예: https://myapp.streamlit.app/?mode=share")
+        share_modal()
     
     st.sidebar.divider()
 
