@@ -488,19 +488,20 @@ def format_student_timetable_grid(schedule_df, student_info=None):
         )
         
         # Generte HTML Table manually to ensure correct layout
+        # IMPORTANT: Do not indent the HTML tags inside the string, or Streamlit will treat them as code blocks!
         table_html = """
 <table style="width:100%; border-collapse: collapse; text-align: center; border: 1px solid #ddd; color: black; margin-bottom: 30px;">
-  <thead>
-    <tr style="background-color: #f2f2f2; border: 1px solid #ddd;">
-      <th style="padding: 10px; border: 1px solid #ddd; width: 10%;">교시</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">월</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">화</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">수</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">목</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">금</th>
-    </tr>
-  </thead>
-  <tbody>
+<thead>
+<tr style="background-color: #f2f2f2; border: 1px solid #ddd;">
+<th style="padding: 10px; border: 1px solid #ddd; width: 10%;">교시</th>
+<th style="padding: 10px; border: 1px solid #ddd; width: 18%;">월</th>
+<th style="padding: 10px; border: 1px solid #ddd; width: 18%;">화</th>
+<th style="padding: 10px; border: 1px solid #ddd; width: 18%;">수</th>
+<th style="padding: 10px; border: 1px solid #ddd; width: 18%;">목</th>
+<th style="padding: 10px; border: 1px solid #ddd; width: 18%;">금</th>
+</tr>
+</thead>
+<tbody>
 """
         for p in periods:
             table_html += f"<tr><td style='border: 1px solid #ddd; font-weight:bold; background-color:#fafafa;'>{p}교시</td>"
