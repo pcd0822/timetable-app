@@ -760,7 +760,7 @@ elif menu == "Teacher View":
                                 
                                 full_print_html = f"""
                                 <div style="text-align: center; margin-bottom: 20px;">
-                                    <h2>{print_title}</h2>
+                                    <div class="print-title" style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">{print_title}</div>
                                     <p>총 {len(stud_df)}명</p>
                                 </div>
                                 {s_html}
@@ -791,7 +791,7 @@ elif menu == "Teacher View":
                                 printWindow.document.write('<style>');
                                 printWindow.document.write('@page { size: A4; margin: 20mm; }');
                                 printWindow.document.write('body { font-family: "Malgun Gothic", dotum, sans-serif; text-align: center; margin: 0; padding: 20px; }');
-                                printWindow.document.write('h2 { margin-bottom: 20px; }');
+                                printWindow.document.write('.print-title { font-size: 24px; font-weight: bold; margin-bottom: 20px; }');
                                 printWindow.document.write('table { width: 100%; border-collapse: collapse; text-align: center; margin-top: 20px; }');
                                 printWindow.document.write('th, td { border: 1px solid black; padding: 8px; font-size: 12pt; }');
                                 printWindow.document.write('th { background-color: #f2f2f2; }');
