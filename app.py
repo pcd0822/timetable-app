@@ -223,16 +223,19 @@ elif menu == "Timetable Setup":
         if 'Week' not in tt_df.columns: tt_df['Week'] = 1
         
         # Week Filter for Grid
-        all_weeks = sorted(tt_df['Week'].astype(int).unique())
+        # Week Filter for Grid
+        # Ensure python native types for compatibility
+        all_weeks = sorted(tt_df['Week'].astype(int).unique().tolist())
         st.subheader("시간표 요약 (Grid)")
         
+        # Validate session state to prevent crash if data is stale
+        if "grid_view_week_sel" in st.session_state:
+            if st.session_state["grid_view_week_sel"] not in all_weeks:
+                # Value stored (e.g. from Add) is not in loaded data yet? 
+                # Or type mismatch? Remove it to prevent error.
+                del st.session_state["grid_view_week_sel"]
+        
         selected_view_week = st.selectbox("조회할 주차 선택", all_weeks, index=0, key="grid_view_week_sel")
-
-        # Logic to auto-switch view to the week being edited if not already
-        if 'last_added_week' in st.session_state and st.session_state.last_added_week in all_weeks:
-             # This is tricky because selectbox key persistence fights with programmatic updates.
-             # Streamlit way: Use a callback or direct session state manipulation before widget.
-             pass 
 
         
         # Filter Grid Data
