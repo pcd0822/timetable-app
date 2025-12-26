@@ -767,59 +767,56 @@ elif menu == "Teacher View":
                                 """
                                 st.markdown(full_print_html, unsafe_allow_html=True)
 
-                            # CSS for Print (Global for this block)
-                            st.markdown("""
-                            <style>
-                            @media print {
-                                /* Hide ALL Streamlit components and containers */
-                                body * {
-                                    visibility: hidden;
-                                }
-                                
-                                /* Define A4 Page */
-                                @page {
-                                    size: A4;
-                                    margin: 20mm;
-                                }
-                                
-                                /* Reveal ONLY our print area */
-                                #teacher-print-area, #teacher-print-area * {
-                                    visibility: visible;
-                                }
-                                
-                                #teacher-print-area {
-                                    position: fixed;
-                                    top: 0;
-                                    left: 0;
-                                    width: 100%;
-                                    margin: 0;
-                                    padding: 0;
-                                    background-color: white;
-                                    z-index: 999999;
-                                }
-                                
-                                /* Clean up page breaks */
-                                html, body {
-                                    height: auto;
-                                    overflow: visible;
-                                    margin: 0 !important;
-                                    padding: 0 !important;
-                                }
-                            }
-                            #teacher-print-area { display: none; } /* Hide the duplicate print area on screen */
-                            </style>
-                            """, unsafe_allow_html=True)
+                            # Hidden Div for Source Content (Not displayed, just for JS to grab)
+                            st.markdown(f'<div id="teacher-print-source" style="display:none;">{full_print_html}</div>', unsafe_allow_html=True)
                             
-                            # Hidden Div for Print (This is what actually gets printed)
-                            st.markdown(f'<div id="teacher-print-area">{full_print_html}</div>', unsafe_allow_html=True)
-                            
-                            # Print Button (Visible on Screen)
+                            # Print Button with Popup Logic
                             import streamlit.components.v1 as components
-                            components.html("""
+                            
+                            js_print_logic = """
+                            <script>
+                            function printContent() {
+                                // Get the content from the hidden div in the parent document
+                                const contentDiv = window.parent.document.getElementById('teacher-print-source');
+                                if (!contentDiv) {
+                                    alert("인쇄할 내용을 찾을 수 없습니다.");
+                                    return;
+                                }
+                                const content = contentDiv.innerHTML;
+                                
+                                // Open a new window
+                                const printWindow = window.open('', '', 'height=800,width=800');
+                                
+                                printWindow.document.write('<html><head><title>명단 인쇄</title>');
+                                printWindow.document.write('<style>');
+                                printWindow.document.write('@page { size: A4; margin: 20mm; }');
+                                printWindow.document.write('body { font-family: "Malgun Gothic", dotum, sans-serif; text-align: center; margin: 0; padding: 20px; }');
+                                printWindow.document.write('h2 { margin-bottom: 20px; }');
+                                printWindow.document.write('table { width: 100%; border-collapse: collapse; text-align: center; margin-top: 20px; }');
+                                printWindow.document.write('th, td { border: 1px solid black; padding: 8px; font-size: 12pt; }');
+                                printWindow.document.write('th { background-color: #f2f2f2; }');
+                                printWindow.document.write('.student-list { width: 100%; }');
+                                printWindow.document.write('</style>');
+                                printWindow.document.write('</head><body>');
+                                printWindow.document.write(content);
+                                printWindow.document.write('</body></html>');
+                                
+                                printWindow.document.close();
+                                printWindow.focus();
+                                
+                                // Trigger print
+                                setTimeout(() => {
+                                    printWindow.print();
+                                    // Optional: printWindow.close(); // Close after print if desired
+                                }, 500);
+                            }
+                            </script>
+                            
                             <div style="text-align: center; margin-top: 10px;">
-                                <button onclick="window.parent.print()" style="background-color: #4CAF50; border: none; color: white; padding: 10px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 4px;">🖨️ 명단 인쇄하기</button>
+                                <button onclick="printContent()" style="background-color: #4CAF50; border: none; color: white; padding: 10px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 4px;">🖨️ 명단 인쇄하기</button>
                             </div>
-                            """, height=60)
+                            """
+                            components.html(js_print_logic, height=100)
 
 
                         else:
