@@ -105,15 +105,6 @@ elif menu == "Teacher Assignment":
                 sub_select = st.selectbox("담당 과목", subjects)
             with col2:
                 # Room input here or separate? 
-                # "Room Assignment" is a separate menu item in plan, but User Req 2.3 says:
-                # "When assigning teacher... input room". Actually 2.3 says "Time table... Room Assignment UI".
-                # But Point 1 Teacher Assignment says "Assign Teacher to Subject... Checkbox Class".
-                # Let's keep Room separate or add here?
-                # User Prompt: "3. Room Assignment: When subject assigned to timetable... input room".
-                # Okay, Room is later. But maybe convenient here? 
-                # Let's strictly follow plan: Room later.
-                # But wait, logic.save_teacher_assignment has 'Room' param. 
-                # I'll enable it here for convenience, or default empty.
                 room_input = st.text_input("강의실 (선택)", help="나중에 '강의실 배정' 메뉴에서도 수정 가능합니다.")
             
             # Class Selection
@@ -151,6 +142,15 @@ elif menu == "Timetable Setup":
 
     # 1. Add Slot Form
     with st.expander("시간표 배정 추가", expanded=True):
+        # Week / Date input
+        col_w1, col_w2, col_w3 = st.columns(3)
+        with col_w1:
+            s_week = st.number_input("주차 (Week)", min_value=1, value=1, step=1)
+        with col_w2:
+            s_date_str = st.text_input("날짜 (예: 11/04)", help="선택사항. 인쇄 시 표시됩니다.")
+        with col_w3:
+            st.empty()
+
         col1, col2, col3 = st.columns(3)
         with col1:
             s_day = st.selectbox("요일", days)
@@ -161,18 +161,18 @@ elif menu == "Timetable Setup":
             
         if st.button("배정 추가"):
             # Check Conflicts
-            conflicts = check_conflicts(st.session_state.db, s_day, s_period, s_subject)
+            conflicts = check_conflicts(st.session_state.db, s_week, s_day, s_period, s_subject)
             if conflicts:
-                st.warning(f"⚠️ 충돌 경고! 다음 학생들이 이 시간에 다른 과목 수업이 있습니다: {', '.join(conflicts)}")
+                st.warning(f"⚠️ 충돌 경고 ({s_week}주차 {s_day} {s_period}교시)! 다음 학생들이 이 시간에 다른 과목 수업이 있습니다: {', '.join(conflicts)}")
                 if st.checkbox("충돌 무시하고 저장하시겠습니까?"):
-                    success, msg = add_timetable_slot(st.session_state.db, s_day, s_period, s_subject)
+                    success, msg = add_timetable_slot(st.session_state.db, s_week, s_date_str, s_day, s_period, s_subject)
                     if success:
                         st.success(msg)
                         st.rerun()
                     else:
                         st.error(msg)
             else:
-                success, msg = add_timetable_slot(st.session_state.db, s_day, s_period, s_subject)
+                success, msg = add_timetable_slot(st.session_state.db, s_week, s_date_str, s_day, s_period, s_subject)
                 if success:
                     st.success(msg)
                     st.rerun()
@@ -186,14 +186,22 @@ elif menu == "Timetable Setup":
     if not tt_df.empty:
         # Sort for display
         tt_df['Period'] = tt_df['Period'].astype(int)
+        if 'Week' not in tt_df.columns: tt_df['Week'] = 1
         
-        # Grid View (Pivot)
-        # Create full grid
+        # Week Filter for Grid
+        all_weeks = sorted(tt_df['Week'].astype(int).unique())
         st.subheader("시간표 요약 (Grid)")
         
+        selected_view_week = st.selectbox("조회할 주차 선택", all_weeks, index=0)
+        
+        # Filter Grid Data
+        grid_df = tt_df[tt_df['Week'].astype(int) == selected_view_week].copy()
+
+        # Grid View (Pivot)
+        # Create full grid
         # Create pivot-ready data. Since multiple subjects can be in one slot, pivot might aggregate.
         # We join them with newlines.
-        pivot_data = tt_df.assign(Subject=tt_df['Subject']).pivot_table(
+        pivot_data = grid_df.assign(Subject=grid_df['Subject']).pivot_table(
             index='Period', columns='Day', values='Subject', 
             aggfunc=lambda x: '\n'.join(x)
         )
@@ -203,13 +211,19 @@ elif menu == "Timetable Setup":
         
         # List View for Deletion
         st.subheader("배정 목록 및 삭제")
+        # Show all or filter? Let's show all but sort by Week
+        tt_df = tt_df.sort_values(by=['Week', 'Day', 'Period'])
+        
         for i, row in tt_df.iterrows():
             col_a, col_b = st.columns([4, 1])
+            week_info = f"[{row['Week']}주차]"
+            date_info = f"({row['Date']})" if pd.notna(row.get('Date')) and row.get('Date') else ""
+            
             with col_a:
-                st.text(f"{row['Day']}요일 {row['Period']}교시 - {row['Subject']}")
+                st.text(f"{week_info} {row['Day']}요일 {row['Period']}교시 - {row['Subject']} {date_info}")
             with col_b:
                 if st.button("삭제", key=f"del_{i}"):
-                     delete_timetable_slot(st.session_state.db, row['Day'], row['Period'], row['Subject'])
+                     delete_timetable_slot(st.session_state.db, row['Week'], row['Day'], row['Period'], row['Subject'])
                      st.rerun()
     else:
         st.info("편성된 시간표가 없습니다.")
@@ -240,26 +254,39 @@ elif menu == "Room Assignment":
 elif menu == "Student View":
     st.header("학생 시간표 조회 및 인쇄")
     
-    from modules.logic import generate_student_timetable, format_student_timetable_grid, get_students_in_class
+    from modules.logic import generate_student_timetable, format_student_timetable_grid, get_students_in_class, load_timetable
+    
+    # Check available weeks
+    tt_df = load_timetable(st.session_state.db)
+    available_weeks = [1]
+    if not tt_df.empty and 'Week' in tt_df.columns:
+        available_weeks = sorted(tt_df['Week'].astype(int).unique())
     
     # Mode Selection using Tabs
     tab1, tab2 = st.tabs(["👤 개인별 조회", "🏫 학급별 일괄 조회 (인쇄용)"])
     
     with tab1:
-        sid_input = st.text_input("학번을 입력하세요 (예: 10101)")
-        
+        col_s1, col_s2 = st.columns([3, 1])
+        with col_s1:
+            sid_input = st.text_input("학번을 입력하세요 (예: 10101)")
+        with col_s2:
+            # Week Selector
+            week_opts = ["전체"] + [f"{w}주차" for w in available_weeks]
+            ver_week = st.selectbox("주차 선택", week_opts)
+            
         if st.button("조회"):
             if sid_input:
-                schedule_df, msg, s_name = generate_student_timetable(st.session_state.db, sid_input)
+                target_week = None
+                if ver_week != "전체":
+                    target_week = int(ver_week.replace("주차", ""))
+                    
+                schedule_df, msg, s_name = generate_student_timetable(st.session_state.db, sid_input, week=target_week)
                 
                 if schedule_df is not None and not schedule_df.empty:
                     st.success(f"학번: {sid_input} 이름: {s_name} 시간표")
                     
                     # Transform to Grid (Now returns HTML string with Header)
                     timetable_html = format_student_timetable_grid(schedule_df, student_info={'id': sid_input, 'name': s_name})
-                    
-                    # Display HTML Table -> Removed duplicate call
-                    # st.markdown(timetable_html, unsafe_allow_html=True)
                     
                     # Improved Print Button using Components
                     import streamlit.components.v1 as components
@@ -301,7 +328,6 @@ elif menu == "Student View":
                         }
 
                         /* Hide main titles BUT show our custom print title */
-                        /* Hide main titles BUT show our custom print title */
                         h1, h2, h3, h4, h5, h6 {display: none !important;}
                         h2.print-title {display: block !important;}
 
@@ -340,13 +366,9 @@ elif menu == "Student View":
                             margin: 0 !important;
                             padding-top: 0 !important;
                             margin-top: 0 !important;
-                            /* Removed forced static position as it might break rendering */
-                            /* position: static !important; */
-                            /* transform: none !important; */
                             overflow: visible !important;
                         }
                         
-                        /* Adjusted positioning */
                         /* Adjusted positioning for Centering */
                         #print-area {
                             /* Flexbox Alignment */
@@ -388,15 +410,22 @@ elif menu == "Student View":
         st.info("특정 학급의 배정 대상 학생들의 시간표를 한 번에 출력합니다. (학생 1명당 A4 1페이지)")
         
         # Select Grade/Class
-        # Assuming Data is loaded, let's get unique Grade/Class combo or separate inputs
-        col_g, col_c = st.columns(2)
+        col_g, col_c, col_w = st.columns(3)
         with col_g:
             grade_input = st.selectbox("학년", ["1", "2", "3"])
         with col_c:
             class_input = st.selectbox("반", [str(i) for i in range(1, 16)]) # 1~15 class
+        with col_w:
+            week_opts_batch = ["전체"] + [f"{w}주차" for w in available_weeks]
+            batch_week_sel = st.selectbox("출력할 주차", week_opts_batch)
             
         if st.button("일괄 조회 및 인쇄 미리보기"):
             targets = get_students_in_class(st.session_state.db, grade_input, class_input)
+            
+            # Filter Week
+            target_week_val = None
+            if batch_week_sel != "전체":
+                target_week_val = int(batch_week_sel.replace("주차", ""))
             
             if not targets:
                 st.warning(f"{grade_input}학년 {class_input}반에 최소 성취수준 보장지도 대상 학생이 없습니다.")
@@ -412,20 +441,15 @@ elif menu == "Student View":
                     sid = student['학번']
                     name = student['이름']
                     
-                    sch_df, _, _ = generate_student_timetable(st.session_state.db, sid)
+                    sch_df, _, _ = generate_student_timetable(st.session_state.db, sid, week=target_week_val)
                     
                     # Generate HTML Grid with Header
                     if sch_df is not None and not sch_df.empty:
                         t_html = format_student_timetable_grid(sch_df, student_info={'id': sid, 'name': name})
                     else:
-                        t_html = f"<div style='text-align:center; padding: 20px;'><h3>{name} ({sid})</h3><p>배정된 시간표 없음</p></div>"
+                        t_html = f"<div style='text-align:center; padding: 20px;'><h3>{name} ({sid})</h3>배정된 시간표 없음</div>"
                         
                     # Wrap with Page Break
-                    # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
-                    # Wrap with Page Break
-                    # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
-                    # Wrap with Page Break
-                    # We don't need to add h2 title here anymore because format_student_timetable_grid does it.
                     full_html += f"""
 <div class="print-page" style="page-break-after: always; box-sizing: border-box;">
 {t_html}
@@ -512,7 +536,6 @@ elif menu == "Student View":
                         padding-top: 0 !important;
                         margin-top: 0 !important;
                         max-width: none !important;
-                        /* Removed forced static position */
                     }
 
                     /* Page Break Control & Alignment */
@@ -521,7 +544,6 @@ elif menu == "Student View":
                         break-after: page;
                         page-break-inside: avoid;
                         display: block; /* Back to block for natural flow */
-                        /* Removed flex/height to prevent blank pages */
                         padding-top: 0px; 
                         margin-top: 0px;
                         box-sizing: border-box;
@@ -569,14 +591,6 @@ elif menu == "Teacher View":
             if not t_schedule.empty:
                 st.table(t_schedule)
                 
-                # Student List for a specific slot?
-                # User request: "Bottom: Student list table for that class time"
-                # Need to select a slot first? Or show all?
-                # "Teacher timetable... Bottom: Student List"
-                # Maybe show list for ALL slots? Or interactively click?
-                # Interactive click in Streamlit table is hard.
-                # Let's add a selector "Select Slot to View Students".
-                
                 slot_options = t_schedule.apply(lambda x: f"{x['Day']} {x['Period']}교시 ({x['Subject']})", axis=1)
                 selected_slot_str = st.selectbox("수강생 명단 조회할 수업 선택", slot_options)
                 
@@ -606,5 +620,3 @@ elif menu == "Teacher View":
                 st.info("배정된 시간표가 없습니다.")
     else:
         st.warning("교사 데이터가 없습니다.")
-
-
