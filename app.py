@@ -15,10 +15,32 @@ if 'db' not in st.session_state:
 
 # Sidebar
 st.sidebar.title("Navigation")
-menu = st.sidebar.radio("Go to", 
-    ["Data Upload", "Teacher Assignment", "Timetable Setup", "Room Assignment", "Student View", "Teacher View", "Environment Setup"])
+
+# Check query params for Share Mode
+query_params = st.query_params
+mode = query_params.get("mode", "normal")
+
+if mode == "share":
+    st.sidebar.info("🔓 공유 모드로 보고 있습니다.\n(학생/교사 조회만 가능합니다.)")
+    menu_options = ["Student View", "Teacher View"]
+else:
+    menu_options = ["Data Upload", "Teacher Assignment", "Timetable Setup", "Room Assignment", "Student View", "Teacher View", "Environment Setup"]
+
+menu = st.sidebar.radio("Go to", menu_options)
 
 st.sidebar.divider()
+
+# Share Button (Only in Normal Mode)
+if mode != "share":
+    if st.sidebar.button("🔗 시간표 공유하기 (Share Link)"):
+        # Generate link (Assuming localhost or deployed URL)
+        # We can't easily get the absolute URL in Streamlit, but we can instruct the user.
+        # Or just append ?mode=share to the current URL.
+        st.sidebar.code("?mode=share", language="text")
+        st.sidebar.caption("위 텍스트를 현재 주소 뒤에 붙여서 공유하세요.\n예: https://myapp.streamlit.app/?mode=share")
+    
+    st.sidebar.divider()
+
 if st.sidebar.button("🔄 데이터 새로고침 (Refresh)"):
     # Clear internal cache if exists
     if hasattr(st.session_state.db, 'cache'):
@@ -33,7 +55,8 @@ try:
     tc_count = len(st.session_state.db.load_dataframe("Teachers"))
     st.sidebar.info(f"📊 **DB 상태**\n\n- 학생: {st_count}명\n- 교사 배정: {tc_count}건")
 except Exception:
-    st.sidebar.warning("DB 연결 대기 중...")
+    if mode != "share": # Hide warning in share mode to be cleaner
+        st.sidebar.warning("DB 연결 대기 중...")
 
 # Main Content Placeholder
 st.title("최소 성취수준 보장지도 시간표 관리")
@@ -672,7 +695,7 @@ elif menu == "Teacher View":
                                 # Generate HTML for the list
                                 s_html = stud_df.to_html(index=False, classes="student-list", border=1, justify="center")
                                 
-                                # Custom Styling for List
+                                # Custom Styling for List (same as before)
                                 s_html = s_html.replace('<table border="1" class="dataframe student-list">', '<table style="width:100%; border-collapse: collapse; text-align: center; font-family: Malgun Gothic, sans-serif;">')
                                 s_html = s_html.replace('<thead>', '<thead style="background-color: #f2f2f2;">')
                                 s_html = s_html.replace('<th>', '<th style="padding: 10px; border: 1px solid #000;">')
@@ -687,42 +710,44 @@ elif menu == "Teacher View":
                                 </div>
                                 {s_html}
                                 """
+                                st.markdown(full_print_html, unsafe_allow_html=True)
+
+                            # CSS for Print (Global for this block)
+                            st.markdown("""
+                            <style>
+                            @media print {
+                                /* Hide Streamlit components */
+                                #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton, .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stDataFrame {display: none !important;}
+                                [data-testid="stAppViewContainer"] > .main {padding: 0 !important; margin: 0 !important;}
+                                .block-container {padding: 0 !important; margin: 0 !important;}
                                 
-                                # CSS for Print
-                                st.markdown("""
-                                <style>
-                                @media print {
-                                    /* Hide Streamlit components */
-                                    #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton, .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stDataFrame {display: none !important;}
-                                    [data-testid="stAppViewContainer"] > .main {padding: 0 !important; margin: 0 !important;}
-                                    .block-container {padding: 0 !important; margin: 0 !important;}
-                                    
-                                    #teacher-print-area {
-                                        position: absolute;
-                                        top: 0;
-                                        left: 0;
-                                        width: 100%;
-                                        z-index: 9999;
-                                        display: block !important;
-                                        background-color: white;
-                                        padding: 20px;
-                                    }
+                                #teacher-print-area {
+                                    position: absolute;
+                                    top: 0;
+                                    left: 0;
+                                    width: 100%;
+                                    z-index: 9999;
+                                    display: block !important;
+                                    background-color: white;
+                                    padding: 20px;
                                 }
-                                /* Hide print area in screen view if desired, or show it inside expander */
-                                /* We show it inside expander so user sees what will be printed */
-                                </style>
-                                """, unsafe_allow_html=True)
-                                
-                                # Render Print Area
-                                st.markdown(f'<div id="teacher-print-area">{full_print_html}</div>', unsafe_allow_html=True)
-                                
-                                # Print Button
-                                import streamlit.components.v1 as components
-                                components.html("""
-                                <div style="text-align: center; margin-top: 10px;">
-                                    <button onclick="window.parent.print()" style="background-color: #4CAF50; border: none; color: white; padding: 10px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 4px;">🖨️ 인쇄하기</button>
-                                </div>
-                                """, height=60)
+                            }
+                            #teacher-print-area { display: none; } /* Hide the duplicate print area on screen */
+                            @media print { #teacher-print-area { display: block !important; } }
+                            </style>
+                            """, unsafe_allow_html=True)
+                            
+                            # Hidden Div for Print (This is what actually gets printed)
+                            st.markdown(f'<div id="teacher-print-area">{full_print_html}</div>', unsafe_allow_html=True)
+                            
+                            # Print Button (Visible on Screen)
+                            import streamlit.components.v1 as components
+                            components.html("""
+                            <div style="text-align: center; margin-top: 10px;">
+                                <button onclick="window.parent.print()" style="background-color: #4CAF50; border: none; color: white; padding: 10px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 4px;">🖨️ 명단 인쇄하기</button>
+                            </div>
+                            """, height=60)
+
 
                         else:
                             st.info("해당 수업을 듣는 학생이 없습니다.")
