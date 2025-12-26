@@ -415,32 +415,7 @@ def format_student_timetable_grid(schedule_df, student_info=None):
     if schedule_df.empty:
         return "<p>시간표 데이터가 없습니다.</p>"
 
-    # Header HTML Generation
-    header_html = ""
-    if student_info:
-        sid = student_info.get('id', '')
-        name = student_info.get('name', '')
-        # Check if single week?
-        week_label = ""
-        if '주차' in schedule_df.columns:
-            u_weeks = schedule_df['주차'].unique()
-            if len(u_weeks) == 1:
-                week_label = f"({u_weeks[0]}주차)"
-
-        header_html = f"""
-<div style="width: 100%; margin-bottom: 10px; font-family: 'Malgun Gothic', dotum, sans-serif;">
-<div style="text-align: center; margin-bottom: 10px;">
-<h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표 {week_label}</h2>
-</div>
-<div style="text-align: right; font-weight: bold; font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px;">
-<span style="margin-right: 30px;">학번 : {sid}</span>
-<span>이름 : {name}</span>
-</div>
-</div>
-"""
-    
-    # Create a composite text for the cell
-    # Use HTML breaks <br>
+    # Helper to format cell content
     def format_cell(row):
         # 1. Subject (Bold)
         txt = f"<b>{row['과목']}</b>"
@@ -459,61 +434,82 @@ def format_student_timetable_grid(schedule_df, student_info=None):
         
         return txt + details
 
+    schedule_df = schedule_df.copy()
     schedule_df['Cell'] = schedule_df.apply(format_cell, axis=1)
-
-    # Pivot
+    
     # Ensure '교시' is int for correct reindexing
     schedule_df['교시'] = schedule_df['교시'].astype(int)
     
-    # If multiple weeks present, this Pivot might stack them.
-    # It's better if the caller filters by Week ONE by ONE if they want clear grids.
-    # But if mixed, we stack.
-    pivot_df = schedule_df.pivot_table(
-        index='교시', 
-        columns='요일', 
-        values='Cell', 
-        aggfunc=lambda x: '<br><hr style="margin:2px 0;"><br>'.join(x) # Separator for conflicts/multiple weeks
-    )
+    # Identify Weeks
+    week_col = '주차' if '주차' in schedule_df.columns else 'Week'
     
-    # Reindex
+    if week_col in schedule_df.columns:
+        unique_weeks = sorted(schedule_df[week_col].unique())
+    else:
+        unique_weeks = [1] # Default if no week info
+        
+    full_html = ""
+    
     days = ["월", "화", "수", "목", "금"]
     periods = range(1, 8)
-    
-    pivot_df = pivot_df.reindex(index=periods, columns=days)
-    pivot_df = pivot_df.fillna("") 
-    
-    # Generate HTML Table
-    html = """
-<table style="width:100%; border-collapse: collapse; text-align: center; border: 1px solid #ddd; color: black;">
-  <thead>
-    <tr style="background-color: #f2f2f2; border: 1px solid #ddd;">
-      <th style="padding: 10px; border: 1px solid #ddd; width: 10%;">교시</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">월</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">화</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">수</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">목</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">금</th>
-    </tr>
-  </thead>
-  <tbody>
-"""
-    
-    for p in periods:
-        html += f"<tr><td style='border: 1px solid #ddd; font-weight:bold; background-color:#fafafa;'>{p}교시</td>"
-        for d in days:
-            try:
-                cell_content = pivot_df.loc[p, d]
-                if pd.isna(cell_content): cell_content = ""
-            except KeyError:
-                cell_content = ""
+
+    sid = student_info.get('id', '') if student_info else ''
+    name = student_info.get('name', '') if student_info else ''
+
+    for week in unique_weeks:
+        # Filter for current week
+        if week_col in schedule_df.columns:
+            week_df = schedule_df[schedule_df[week_col] == week]
+        else:
+            week_df = schedule_df
             
-            # Make cell look clickable/interactive or just nice
-            html += f"<td style='padding: 8px; border: 1px solid #ddd; vertical-align: middle; height: 80px;'>{cell_content}</td>"
-        html += "</tr>"
+        if week_df.empty:
+            continue
+            
+        week_label = f"({week}주차)"
         
-    html += "</tbody></table>"
-    
-    return header_html + html
+        # Header HTML
+        header_html = f"""
+<div style="width: 100%; margin-bottom: 10px; font-family: 'Malgun Gothic', dotum, sans-serif; page-break-inside: avoid;">
+<div style="text-align: center; margin-bottom: 10px;">
+<h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표 {week_label}</h2>
+</div>
+<div style="text-align: right; font-weight: bold; font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px;">
+<span style="margin-right: 30px;">학번 : {sid}</span>
+<span>이름 : {name}</span>
+</div>
+</div>
+"""
+        # Grid Generation
+        # Pivot: Index=Periods, Columns=Days
+        pivot_table = week_df.pivot_table(
+            index='교시', columns='요일', values='Cell', 
+            aggfunc=lambda x: '<br><hr style="margin:2px 0;">'.join(x)
+        )
+        
+        # Reindex to ensure 1-7 periods and Mon-Fri days exist
+        pivot_table = pivot_table.reindex(index=periods, columns=days)
+        
+        # Fill NaN with empty string
+        pivot_table = pivot_table.fillna("")
+        
+        # Convert to HTML
+        table_html = pivot_table.to_html(escape=False, classes="timetable-grid")
+        
+        # Inject styling (using simple replacements for simplicity)
+        table_html = table_html.replace('<table border="1" class="dataframe timetable-grid">', '<table style="width:100%; border-collapse: collapse; text-align: center; margin-bottom: 30px;">')
+        table_html = table_html.replace('<thead>', '<thead style="background-color: #f2f2f2;">')
+        table_html = table_html.replace('<th>', '<th style="border: 1px solid #000; padding: 8px; text-align: center;">')
+        table_html = table_html.replace('<td>', '<td style="border: 1px solid #000; padding: 8px; height: 50px; vertical-align: middle;">')
+        
+        full_html += f"""
+<div class="week-block" style="margin-bottom: 40px; page-break-inside: avoid;">
+    {header_html}
+    {table_html}
+</div>
+"""
+
+    return full_html
 
 
 def get_students_in_class(db_manager, grade, class_num):
