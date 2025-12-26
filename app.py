@@ -49,9 +49,23 @@ def share_modal():
     </div>
 
     <script>
-        // Get base URL (origin + pathname)
-        const baseUrl = window.location.origin + window.location.pathname;
-        const shareUrl = baseUrl.split('?')[0] + "?mode=share"; // Remove existing params and add mode=share
+        // Function to get the correct parent URL
+        function getParentUrl() {
+            try {
+                // Try retrieving from window.parent.location first
+                if (window.parent && window.parent.location && window.parent.location.href) {
+                    return window.parent.location.href;
+                }
+            } catch (e) {
+                console.warn("Access to window.parent blocked. Using document.referrer as fallback.");
+            }
+            // Fallback: document.referrer often points to the embedding page
+            return document.referrer || window.location.href; 
+        }
+
+        const fullUrl = getParentUrl();
+        // Remove existing query params and force mode=share
+        const shareUrl = fullUrl.split('?')[0] + "?mode=share"; 
         
         // Set input value
         document.getElementById("share_link_input").value = shareUrl;
@@ -59,7 +73,7 @@ def share_modal():
         function copyLink() {
             const copyText = document.getElementById("share_link_input");
             copyText.select();
-            copyText.setSelectionRange(0, 99999); // For mobile devices
+            copyText.setSelectionRange(0, 99999); 
 
             navigator.clipboard.writeText(copyText.value).then(() => {
                 document.getElementById("copy_status").innerText = "✅ 링크가 복사되었습니다!";
