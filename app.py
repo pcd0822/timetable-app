@@ -1,561 +1,664 @@
-import pandas as pd
 import streamlit as st
+from modules.db_manager import DBManager
+import pandas as pd
+import textwrap
+import importlib
+import modules.logic
+importlib.reload(modules.logic)
 
-def get_unique_subjects(db_manager):
-    """
-    Fetches all unique subjects from the 'Students' sheet.
-    Assumes 'parsed_subjects' column exists and is comma-separated string.
-    """
-    df = db_manager.load_dataframe("Students")
-    if df.empty or 'parsed_subjects' not in df.columns:
-        return []
+# Page Config
+st.set_page_config(page_title="시간표 배정 프로그램", layout="wide")
 
-    unique_subjects = set()
-    for subjects_str in df['parsed_subjects']:
-        if pd.notna(subjects_str) and str(subjects_str).strip() != "":
-            # Split by comma (it was joined by comma in app.py before saving)
-            subjects = str(subjects_str).split(',')
-            for sub in subjects:
-                unique_subjects.add(sub.strip())
+# Initialize Session State
+if 'db' not in st.session_state:
+    st.session_state.db = DBManager()
+
+# Sidebar
+st.sidebar.title("Navigation")
+menu = st.sidebar.radio("Go to", 
+    ["Data Upload", "Teacher Assignment", "Timetable Setup", "Room Assignment", "Student View", "Teacher View"])
+
+st.sidebar.divider()
+if st.sidebar.button("🔄 데이터 새로고침 (Refresh)"):
+    # Clear internal cache if exists
+    if hasattr(st.session_state.db, 'cache'):
+        st.session_state.db.cache = {}
+    st.cache_data.clear()
+    st.rerun()
+
+# --- DB Status Indicator ---
+try:
+    # Quick fetch of counts (using cached load for speed)
+    st_count = len(st.session_state.db.load_dataframe("Students"))
+    tc_count = len(st.session_state.db.load_dataframe("Teachers"))
+    st.sidebar.info(f"📊 **DB 상태**\n\n- 학생: {st_count}명\n- 교사 배정: {tc_count}건")
+except Exception:
+    st.sidebar.warning("DB 연결 대기 중...")
+
+# Main Content Placeholder
+st.title("최소 성취수준 보장지도 시간표 관리")
+
+if menu == "Data Upload":
+    st.header("엑셀 데이터 업로드")
+    from modules.data_loader import parse_excel
     
-    return sorted(list(unique_subjects))
+    # 1. Show Current DB Status
+    st.subheader("📂 현재 저장된 데이터")
+    current_df = st.session_state.db.load_dataframe("Students")
+    if not current_df.empty:
+        st.info(f"현재 데이터베이스에 **{len(current_df)}명**의 학생 정보가 저장되어 있습니다.")
+        with st.expander("현재 저장된 데이터 보기"):
+             st.dataframe(current_df)
+    else:
+        st.warning("현재 저장된 학생 데이터가 없습니다.")
 
-def get_unique_classes(db_manager):
-    """
-    Fetches all unique classes (Grade-Class combo?) or just Class?
-    User request: "Select Student's Class (Checkbox)".
-    Usually we need Grade-Class e.g. "1-1", "1-2".
-    Let's parse columns '학년', '반' from Students.
-    """
-    df = db_manager.load_dataframe("Students")
-    if df.empty or '학년' not in df.columns or '반' not in df.columns:
-        # Fallback if no students yet
-        return [f"{i}반" for i in range(1, 11)]
+    st.divider()
 
-    # Create set of "Grade-Class" or just "Class" if grade is implicitly mixed?
-    # Usually these courses are grade-specific or mixed?
-    # Prompt says: "Student's Class(Class)".
-    # Let's use "Grade-Class" format for uniqueness, e.g. "1-1", "2-1".
-    # Or if the user just wants '1, 2, 3' (indicating Class 1, Class 2 regardless of grade?)
-    # "teacher assigned to 'Students' Class' ... 'Example: Kim (Class 1, 2)'"
-    # This implies Class Number. Let's assume Class Number for now, or Grade-Class if data varies.
-    # Let's return "Grade-Class" to be safe.
+    # 2. Upload New File
+    st.subheader("새 파일 업로드")
+    st.caption("⚠️ 새로운 파일을 업로드하고 저장하면 **기존 데이터가 덮어씌워집니다.**")
     
-    # Ensure encoded as string
-    df['학년'] = df['학년'].astype(str)
-    df['반'] = df['반'].astype(str)
-    
-    unique_classes = set()
-    for _, row in df.iterrows():
-        # clean leading zeros if needed?
-        g = row['학년']
-        c = row['반']
-        class_str = f"{g}-{c}"
-        unique_classes.add(class_str)
-        
-    return sorted(list(unique_classes))
-
-
-def save_teacher_assignment(db_manager, subject, teacher_name, classes, room):
-    """
-    Saves or updates a teacher assignment.
-    Structure of 'Teachers' sheet: [Subject, TeacherName, AssignedClasses, Room]
-    AssignedClasses stored as comma-separated string.
-    """
-    df = db_manager.load_dataframe("Teachers")
-    
-    # If sheet is empty, create DataFrame with columns
-    if df.empty:
-        df = pd.DataFrame(columns=['Subject', 'TeacherName', 'AssignedClasses', 'Room'])
-
-    # Check for existing assignment for this Teacher+Subject? 
-    # Or can a teacher teach same subject to different classes in separate entries?
-    # Logic: One row per (Subject, Teacher). Classes are aggregated? 
-    # Or One row per (Subject, Teacher, Class)?
-    # User said: "Checkboxes for classes".
-    # Let's simple model: One row per Assignment.
-    
-    # To avoid complex updates, let's just append for now, or ID based?
-    # Better: Subject + Teacher is unique? No, Subject is unique?
-    # A subject (Kor_4) can have multiple teachers (Teacher A for Class 1, Teacher B for Class 2).
-    # So (Subject, AssignedClasses) should not overlap? Complex.
-    # Let's just Append and allow user to view/delete in UI.
-    
-    new_entry = {
-         'Subject': subject,
-         'TeacherName': teacher_name,
-         'AssignedClasses': ','.join(map(str, classes)),
-         'Room': room
-    }
-    
-    # Simple append using concat
-    new_df = pd.DataFrame([new_entry])
-    df = pd.concat([df, new_df], ignore_index=True)
-    
-    return db_manager.save_dataframe("Teachers", df)
-
-def get_teacher_assignments(db_manager):
-    return db_manager.load_dataframe("Teachers")
-
-def load_timetable(db_manager):
-    return db_manager.load_dataframe("Timetable")
-
-def add_timetable_slot(db_manager, week, date, day, period, subject):
-    """
-    Adds a subject to a specific Week, Day, Period.
-    Structure: [Week, Date, Day, Period, Subject]
-    """
-    df = db_manager.load_dataframe("Timetable")
-    if df.empty:
-        df = pd.DataFrame(columns=['Week', 'Date', 'Day', 'Period', 'Subject'])
-        
-    # Ensure columns exist (migration)
-    if 'Week' not in df.columns: df['Week'] = 1
-    if 'Date' not in df.columns: df['Date'] = ""
-
-    # Check if exactly same entry exists to prevent dupes
-    # (Week, Day, Period, Subject) should be unique
-    exclude = df[
-        (df['Week'].astype(str) == str(week)) &
-        (df['Day'] == day) & 
-        (df['Period'] == period) & 
-        (df['Subject'] == subject)
-    ]
-    if not exclude.empty:
-        return False, "이미 해당 주차, 요일, 교시에 해당 과목이 배정되어 있습니다."
-
-    new_row = pd.DataFrame([{'Week': week, 'Date': date, 'Day': day, 'Period': period, 'Subject': subject}])
-    df = pd.concat([df, new_row], ignore_index=True)
-    
-    success = db_manager.save_dataframe("Timetable", df)
-    return success, "저장 완료"
-
-def delete_timetable_slot(db_manager, week, day, period, subject):
-    df = db_manager.load_dataframe("Timetable")
-    if df.empty:
-        return
-    
-    # Ensure columns
-    if 'Week' not in df.columns: 
-        # If deleting from legacy data (no week), assume week 1?? 
-        # Or just match Day/Period/Subject?
-        # Let's matching stricter if week is provided.
-        # But for safety, match Week if column exists.
-        pass
-
-    condition = (df['Day'] == day) & (df['Period'] == period) & (df['Subject'] == subject)
-    if 'Week' in df.columns:
-        condition = condition & (df['Week'].astype(str) == str(week))
-        
-    df = df[~condition]
-    db_manager.save_dataframe("Timetable", df)
-
-def check_conflicts(db_manager, week, day, period, new_subject):
-    """
-    Checks if 'new_subject' at (Week, Day, Period) conflicts with other subjects 
-    already scheduled at that time for any student.
-    Returns: List of student names/IDs who have overlapping subjects.
-    """
-    # 1. Get other subjects at this Week/Day/Period
-    timetable_df = load_timetable(db_manager)
-    if timetable_df.empty:
-        return []
-    
-    # Ensure Week column
-    if 'Week' not in timetable_df.columns:
-        timetable_df['Week'] = 1 # Default legacy to Week 1
-
-    others = timetable_df[
-        (timetable_df['Week'].astype(str) == str(week)) &
-        (timetable_df['Day'] == day) & 
-        (timetable_df['Period'] == period) & 
-        (timetable_df['Subject'] != new_subject)
-    ]['Subject'].unique()
-    
-    if len(others) == 0:
-        return []
-        
-    # 2. Find students who take 'new_subject' AND any of 'others'
-    students_df = db_manager.load_dataframe("Students")
-    if students_df.empty:
-        return []
-
-    conflicting_students = []
-    
-    # Iterate students
-    for _, row in students_df.iterrows():
-        # parsed_subjects is user string "Sub1, Sub2" or list?
-        sub_str = str(row.get('parsed_subjects', ''))
-        student_subs = [s.strip() for s in sub_str.split(',') if s.strip()]
-        
-        # Check if student takes new_subject
-        if new_subject in student_subs:
-            # Check if student takes any of 'others'
-            for other in others:
-                if other in student_subs:
-                    conflicting_students.append(f"{row['이름']}({row['학번']}) - {other}와 겹침")
-                    break
-                    
-
-    return conflicting_students
-
-
-def generate_student_timetable(db_manager, student_id, week=None):
-    """
-    Generates personal timetable for a student.
-    Returns DataFrame: [Week, Date, Day, Period, Subject, Teacher, Room]
-    """
-    # 1. Get Student Info
-    students_df = db_manager.load_dataframe("Students")
-    if students_df.empty:
-        return None, "학생 데이터가 없습니다.", None
-        
-    student = students_df[students_df['학번'].astype(str) == str(student_id)]
-    if student.empty:
-        return None, "해당 학번의 학생을 찾을 수 없습니다.", None
-        
-    row = student.iloc[0]
-    if row.get('is_exception'): 
-        is_exc = row.get('is_exception')
-        if is_exc == True or str(is_exc).upper() == 'TRUE':
-             return None, "예외처리된 학생이므로 시간표가 없습니다.", None
-    
-    # Parse subjects
-    sub_str = str(row.get('parsed_subjects', ''))
-    failed_subjects = [s.strip() for s in sub_str.split(',') if s.strip()]
-    
-    if not failed_subjects:
-        return None, "미도달 과목이 없습니다.", None
-        
-    # Student Class Info
-    s_grade = str(row['학년'])
-    s_class = str(row['반'])
-    full_class = f"{s_grade}-{s_class}"
-    
-    # 2. Get Master Timetable
-    timetable_df = load_timetable(db_manager)
-    if timetable_df.empty:
-         return pd.DataFrame(), "전체 시간표가 아직 편성되지 않았습니다.", None
-         
-    # Ensure Week/Date
-    if 'Week' not in timetable_df.columns: timetable_df['Week'] = 1
-    if 'Date' not in timetable_df.columns: timetable_df['Date'] = ""
-
-    # Filter by Week if requested
-    if week:
-        timetable_df = timetable_df[timetable_df['Week'].astype(str) == str(week)]
-
-    # 3. Get Teacher Assignments
-    teachers_df = db_manager.load_dataframe("Teachers")
-    
-    personal_schedule = []
-    
-    for _, slot in timetable_df.iterrows():
-        t_week = slot['Week']
-        t_date = slot['Date']
-        t_day = slot['Day']
-        t_period = slot['Period']
-        t_subject = slot['Subject']
-        
-        # Only relevant if student failed this subject
-        if t_subject in failed_subjects:
-            matched_teacher = "미배정"
-            matched_room = ""
+    uploaded_file = st.file_uploader("학생 명단 엑셀 파일 업로드", type=['xlsx'])
+    if uploaded_file:
+        df, error = parse_excel(uploaded_file)
+        if error:
+            st.error(error)
+        else:
+            st.success(f"파일 파싱 성공! 총 {len(df)}명의 학생 데이터가 로드되었습니다.")
             
-            if not teachers_df.empty:
-                candidates = teachers_df[teachers_df['Subject'] == t_subject]
-                for _, t_row in candidates.iterrows():
-                    assigned_str = str(t_row['AssignedClasses'])
-                    assigned_list = [c.strip() for c in assigned_str.split(',')]
-                    
-                    if full_class in assigned_list:
-                        matched_teacher = t_row['TeacherName']
-                        matched_room = t_row.get('Room', '')
-                        break
+            with st.expander("데이터 미리보기 (전체 데이터 확인)", expanded=True):
+                st.dataframe(df) # Show full dataframe (Streamlit handles pagination)
             
-            personal_schedule.append({
-                '주차': t_week,
-                '날짜': t_date,
-                '요일': t_day,
-                '교시': t_period,
-                '과목': t_subject,
-                '담당교사': matched_teacher,
-                '장소': matched_room
-            })
-            
-    if not personal_schedule:
-        return pd.DataFrame(), "배정된 시간표가 없습니다.", None
-        
-    # Sort
-    day_order = {'월': 1, '화': 2, '수': 3, '목': 4, '금': 5}
-    
-    schedule_df = pd.DataFrame(personal_schedule)
-    schedule_df['DayKey'] = schedule_df['요일'].map(day_order)
-    schedule_df['PeriodKey'] = schedule_df['교시'].astype(int)
-    # Sort by Week -> Day -> Period
-    # Assuming Week is int? or convert to int
-    try:
-        schedule_df['WeekKey'] = schedule_df['주차'].astype(int)
-    except:
-        schedule_df['WeekKey'] = 1 # Fallback
-
-    schedule_df = schedule_df.sort_values(['WeekKey', 'DayKey', 'PeriodKey'])
-    schedule_df = schedule_df[['주차', '날짜', '요일', '교시', '과목', '담당교사', '장소']]
-    
-    return schedule_df, "생성 완료", row.get('이름', '')
-
-
-def get_teacher_schedule(db_manager, teacher_name):
-    """
-    Returns DataFrame of teacher's schedule.
-    """
-    teachers_df = db_manager.load_dataframe("Teachers")
-    if teachers_df.empty:
-        return pd.DataFrame()
-        
-    # Find subjects this teacher teaches
-    my_assignments = teachers_df[teachers_df['TeacherName'] == teacher_name]
-    if my_assignments.empty:
-        return pd.DataFrame()
-        
-    my_subjects = my_assignments['Subject'].unique()
-    
-    # Filter Timetable
-    timetable_df = load_timetable(db_manager)
-    if timetable_df.empty:
-         return pd.DataFrame()
-
-    # Ensure columns
-    if 'Week' not in timetable_df.columns: timetable_df['Week'] = 1
-    if 'Date' not in timetable_df.columns: timetable_df['Date'] = ""
-          
-    teacher_schedule = timetable_df[timetable_df['Subject'].isin(my_subjects)].copy()
-    
-    # Add Room info?
-    # Teacher room is in 'my_assignments'
-    # Map subject -> Room
-    sub_room_map = my_assignments.set_index('Subject')['Room'].to_dict()
-    teacher_schedule['장소'] = teacher_schedule['Subject'].map(sub_room_map)
-    
-    # Sort
-    day_order = {'월': 1, '화': 2, '수': 3, '목': 4, '금': 5}
-    teacher_schedule['DayKey'] = teacher_schedule['Day'].map(day_order)
-    teacher_schedule['PeriodKey'] = teacher_schedule['Period'].astype(int)
-    try:
-        teacher_schedule['WeekKey'] = teacher_schedule['Week'].astype(int)
-    except:
-        teacher_schedule['WeekKey'] = 1
-
-    teacher_schedule = teacher_schedule.sort_values(['WeekKey', 'DayKey', 'PeriodKey'])
-    
-    return teacher_schedule[['Week', 'Date', 'Day', 'Period', 'Subject', '장소']]
-
-def get_students_for_class_slot(db_manager, teacher_name, subject, day=None, period=None):
-    """
-    Returns list of students who should attend this class slot.
-    Logic: 
-    1. Find Teacher's Assigned Classes for this Subject.
-    2. Find Students in those classes who failed this Subject.
-    """
-    # 1. Get Teacher's assigned classes
-    teachers_df = db_manager.load_dataframe("Teachers")
-    if teachers_df.empty:
-        return pd.DataFrame()
-    
-    # Filter by Teacher and Subject
-    assignment = teachers_df[
-        (teachers_df['TeacherName'] == teacher_name) & 
-        (teachers_df['Subject'] == subject)
-    ]
-    
-    if assignment.empty:
-        return pd.DataFrame()
-        
-    s_classes_str = str(assignment.iloc[0]['AssignedClasses'])
-    target_classes = [c.strip() for c in s_classes_str.split(',')]
-    
-    # 2. Filter Students
-    students_df = db_manager.load_dataframe("Students")
-    if students_df.empty:
-        return pd.DataFrame()
-        
-    matched_students = []
-    for _, row in students_df.iterrows():
-        # Check Exception
-        is_exc = row.get('is_exception')
-        if is_exc == True or str(is_exc).upper() == 'TRUE':
-             continue
-             
-        # Check Class
-        s_grade = str(row['학년'])
-        s_class = str(row['반'])
-        full_class = f"{s_grade}-{s_class}"
-        
-        if full_class in target_classes:
-            # Check Subject Failure
-            sub_str = str(row.get('parsed_subjects', ''))
-            failed_subjects = [s.strip() for s in sub_str.split(',') if s.strip()]
-            
-            if subject in failed_subjects:
-                matched_students.append({
-                    '학번': row['학번'],
-                    '이름': row['이름'],
-                    '학년': s_grade,
-                    '반': s_class,
-                    '번호': row['번호']
-                })
+            if st.button("DB에 저장하기"):
+                # Save to Google Sheets
+                # Flatten the list of subjects for display compatibility if needed, 
+                # but allow DBManager to handle it. 
+                # For basic JSON serialization in Sheets, lists are tricky. 
+                # We save the raw strings for now or convert 'parsed_subjects' to string.
                 
-    return pd.DataFrame(matched_students)
+                # Convert list to string for storage
+                save_df = df.copy()
+                save_df['parsed_subjects'] = save_df['parsed_subjects'].apply(lambda x: ','.join(x))
+                
+                success = st.session_state.db.save_dataframe("Students", save_df)
+                if success:
+                    st.success("데이터베이스(Google Sheets - Students)에 저장되었습니다.")
+                else:
+                    # Generic error fallback only if db_manager didn't already show a detailed error
+                    # (In our case, db_manager handles the details, but a generic "Please check above" is helpful)
+                    st.error("저장 실패. 위의 오류 메시지를 확인하세요.")
 
-def format_student_timetable_grid(schedule_df, student_info=None):
-    """
-    Transforms the list-based schedule DataFrame into an HTML grid (Timetable) format.
-    student_info: dict {'id': '...', 'name': '...'}
-    """
-    if schedule_df.empty:
-        return "<p>시간표 데이터가 없습니다.</p>"
-
-    # Header HTML Generation
-    header_html = ""
-    if student_info:
-        sid = student_info.get('id', '')
-        name = student_info.get('name', '')
-        # Check if single week?
-        week_label = ""
-        if '주차' in schedule_df.columns:
-            u_weeks = schedule_df['주차'].unique()
-            if len(u_weeks) == 1:
-                week_label = f"({u_weeks[0]}주차)"
-
-        header_html = f"""
-<div style="width: 100%; margin-bottom: 10px; font-family: 'Malgun Gothic', dotum, sans-serif;">
-<div style="text-align: center; margin-bottom: 10px;">
-<h2 class="print-title" style="margin: 0; font-weight: bold; font-size: 24px;">최소 성취수준 보장지도 보충지도 시간표 {week_label}</h2>
-</div>
-<div style="text-align: right; font-weight: bold; font-size: 18px; border-bottom: 2px solid #333; padding-bottom: 5px;">
-<span style="margin-right: 30px;">학번 : {sid}</span>
-<span>이름 : {name}</span>
-</div>
-</div>
-"""
+elif menu == "Teacher Assignment":
+    st.header("교사 및 과목 배정")
     
-    # Create a composite text for the cell
-    # Use HTML breaks <br>
-    def format_cell(row):
-        # 1. Subject (Bold)
-        txt = f"<b>{row['과목']}</b>"
-        
-        # 2. Date (if exists)
-        if '날짜' in row and pd.notna(row['날짜']) and str(row['날짜']).strip() != "":
-            txt += f"<br><span style='font-size:0.8em; color:#0066cc;'>({row['날짜']})</span>"
+    # Use module access directly to avoid stale imports
+    import modules.logic as logic
+    
+    # 1. Fetch Options
+    subjects = logic.get_unique_subjects(st.session_state.db)
+    classes_options = logic.get_unique_classes(st.session_state.db)
+
+    if not subjects:
+        st.warning("등록된 학생 데이터가 없거나 미도달 과목이 파싱되지 않았습니다. 먼저 'Data Upload'를 진행하세요.")
+    else:
+        with st.form("teacher_assign_form"):
+            st.subheader("새 배정 추가")
+            col1, col2 = st.columns(2)
+            with col1:
+                t_name = st.text_input("교사 성명")
+                sub_select = st.selectbox("담당 과목", subjects)
+            with col2:
+                # Room input here or separate? 
+                room_input = st.text_input("강의실 (선택)", help="나중에 '강의실 배정' 메뉴에서도 수정 가능합니다.")
             
-        # 3. Details (Smaller font)
-        details = ""
-        if row['담당교사'] and row['담당교사'] != "미배정":
-            details += f"<br><span style='font-size:0.9em; color:#555;'>{row['담당교사']}</span>"
+            # Class Selection
+            selected_classes = st.multiselect("담당 학급 (학년-반)", classes_options)
             
-        if row['장소']:
-            details += f"<br><span style='font-size:0.9em; color:#555;'>{str(row['장소'])}</span>"
-        
-        return txt + details
+            submitted = st.form_submit_button("저장")
+            
+            if submitted:
+                if t_name and sub_select and selected_classes:
+                    success = logic.save_teacher_assignment(st.session_state.db, sub_select, t_name, selected_classes, room_input)
+                    if success:
+                        st.success(f"{t_name} 교사 배정 완료!")
+                        st.rerun() # Refresh to show in table
+                else:
+                    st.error("교사 성명, 과목, 담당 학급은 필수입니다.")
 
-    schedule_df['Cell'] = schedule_df.apply(format_cell, axis=1)
+    # 2. View Current Assignments
+    st.divider()
+    st.subheader("현재 배정 현황")
+    assignments_df = logic.get_teacher_assignments(st.session_state.db)
+    if not assignments_df.empty:
+        st.dataframe(assignments_df)
+    else:
+        st.info("아직 배정된 내역이 없습니다.")
 
-    # Pivot
-    # Ensure '교시' is int for correct reindexing
-    schedule_df['교시'] = schedule_df['교시'].astype(int)
+
+elif menu == "Timetable Setup":
+    st.header("전체 시간표 편성")
     
-    # If multiple weeks present, this Pivot might stack them.
-    # It's better if the caller filters by Week ONE by ONE if they want clear grids.
-    # But if mixed, we stack.
-    pivot_df = schedule_df.pivot_table(
-        index='교시', 
-        columns='요일', 
-        values='Cell', 
-        aggfunc=lambda x: '<br><hr style="margin:2px 0;"><br>'.join(x) # Separator for conflicts/multiple weeks
-    )
-    
-    # Reindex
+    import modules.logic as logic
+
+    subjects = logic.get_unique_subjects(st.session_state.db)
     days = ["월", "화", "수", "목", "금"]
-    periods = range(1, 8)
+    periods = range(1, 8) # 1~7교시
+
+    # 1. Add Slot Form
+    with st.expander("시간표 배정 추가", expanded=True):
+        # Week / Date input
+        col_w1, col_w2, col_w3 = st.columns(3)
+        with col_w1:
+            s_week = st.number_input("주차 (Week)", min_value=1, value=1, step=1)
+        with col_w2:
+            s_date_obj = st.date_input("날짜 선택", value=None, help="선택사항. 인쇄 시 표시됩니다.")
+            s_date_str = s_date_obj.strftime("%m/%d") if s_date_obj else ""
+        with col_w3:
+            st.empty()
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            s_day = st.selectbox("요일", days)
+        with col2:
+            s_period = st.selectbox("교시", periods)
+        with col3:
+            s_subject = st.selectbox("과목", subjects, key="timetable_sub")
+            
+        # Initialize session state for conflict handling
+        if 'conflict_confirm' not in st.session_state:
+            st.session_state.conflict_confirm = False
+            st.session_state.pending_slot = None
+
+        if st.button("배정 추가"):
+            # Check Conflicts
+            conflicts = logic.check_conflicts(st.session_state.db, s_week, s_day, s_period, s_subject)
+            if conflicts:
+                st.session_state.conflict_confirm = True
+                st.session_state.pending_slot = {
+                    'week': s_week, 'date': s_date_str, 'day': s_day, 'period': s_period, 'subject': s_subject,
+                    'conflicts': conflicts
+                }
+                st.rerun()
+            else:
+                success, msg = logic.add_timetable_slot(st.session_state.db, s_week, s_date_str, s_day, s_period, s_subject)
+                if success:
+                    st.success(msg)
+                    st.session_state["grid_view_week_sel"] = s_week
+                    st.rerun()
+                else:
+                    st.error(msg)
+        
+        # Display Conflict Confirmation UI
+        if st.session_state.conflict_confirm:
+            # Verify if the pending slot matches current selection to avoid stale state if user changed inputs
+            # Actually, for simplicity, just show the modal-like warning
+            p_slot = st.session_state.pending_slot
+            st.warning(f"⚠️ 충돌 경고 ({p_slot['week']}주차 {p_slot['day']} {p_slot['period']}교시)!\n다음 학생들이 이 시간에 다른 과목 수업이 있습니다: {', '.join(p_slot['conflicts'])}")
+            
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                if st.button("무시하고 저장 (Force Save)", type="primary"):
+                    success, msg = logic.add_timetable_slot(st.session_state.db, p_slot['week'], p_slot['date'], p_slot['day'], p_slot['period'], p_slot['subject'])
+                    if success:
+                        st.success(msg)
+                        st.session_state.conflict_confirm = False # Reset
+                        st.session_state.pending_slot = None
+                        st.session_state["grid_view_week_sel"] = p_slot['week']
+                        st.rerun()
+                    else:
+                        st.error(msg)
+            with col_c2:
+                if st.button("취소 (Cancel)"):
+                    st.session_state.conflict_confirm = False
+                    st.session_state.pending_slot = None
+                    st.rerun()
+
+    # 2. View Timetable (List & Grid)
+    st.divider()
+    tt_df = logic.load_timetable(st.session_state.db)
     
-    pivot_df = pivot_df.reindex(index=periods, columns=days)
-    pivot_df = pivot_df.fillna("") 
+    if not tt_df.empty:
+        # Sort for display
+        tt_df['Period'] = tt_df['Period'].astype(int)
+        if 'Week' not in tt_df.columns: tt_df['Week'] = 1
+        
+        # Week Filter for Grid
+        all_weeks = sorted(tt_df['Week'].astype(int).unique())
+        st.subheader("시간표 요약 (Grid)")
+        
+        selected_view_week = st.selectbox("조회할 주차 선택", all_weeks, index=0, key="grid_view_week_sel")
+
+        # Logic to auto-switch view to the week being edited if not already
+        if 'last_added_week' in st.session_state and st.session_state.last_added_week in all_weeks:
+             # This is tricky because selectbox key persistence fights with programmatic updates.
+             # Streamlit way: Use a callback or direct session state manipulation before widget.
+             pass 
+
+        
+        # Filter Grid Data
+        grid_df = tt_df[tt_df['Week'].astype(int) == selected_view_week].copy()
+
+        # Grid View (Pivot)
+        # Create full grid
+        # Create pivot-ready data. Since multiple subjects can be in one slot, pivot might aggregate.
+        # We join them with newlines.
+        pivot_data = grid_df.assign(Subject=grid_df['Subject']).pivot_table(
+            index='Period', columns='Day', values='Subject', 
+            aggfunc=lambda x: '\n'.join(x)
+        )
+        # Reorder columns and index
+        pivot_data = pivot_data.reindex(index=periods, columns=days)
+        st.dataframe(pivot_data, use_container_width=True)
+        
+        # List View for Deletion
+        st.subheader("배정 목록 및 삭제")
+        # Show all or filter? Let's show all but sort by Week
+        tt_df = tt_df.sort_values(by=['Week', 'Day', 'Period'])
+        
+        for i, row in tt_df.iterrows():
+            col_a, col_b = st.columns([4, 1])
+            week_info = f"[{row['Week']}주차]"
+            date_info = f"({row['Date']})" if pd.notna(row.get('Date')) and row.get('Date') else ""
+            
+            with col_a:
+                st.text(f"{week_info} {row['Day']}요일 {row['Period']}교시 - {row['Subject']} {date_info}")
+            with col_b:
+                if st.button("삭제", key=f"del_{i}"):
+                     # HERE was the error. Using logic.delete_timetable_slot ensures we use the reloaded module
+                     logic.delete_timetable_slot(st.session_state.db, row['Week'], row['Day'], row['Period'], row['Subject'])
+                     st.rerun()
+    else:
+        st.info("편성된 시간표가 없습니다.")
+
+
+elif menu == "Room Assignment":
+    st.header("강의실 배정 (관리)")
+    st.info("교사-과목 배정 내역에서 강의실 정보를 수정합니다.")
     
-    # Generate HTML Table
-    html = """
-<table style="width:100%; border-collapse: collapse; text-align: center; border: 1px solid #ddd; color: black;">
-  <thead>
-    <tr style="background-color: #f2f2f2; border: 1px solid #ddd;">
-      <th style="padding: 10px; border: 1px solid #ddd; width: 10%;">교시</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">월</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">화</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">수</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">목</th>
-      <th style="padding: 10px; border: 1px solid #ddd; width: 18%;">금</th>
-    </tr>
-  </thead>
-  <tbody>
+    import modules.logic as logic
+    
+    df = logic.get_teacher_assignments(st.session_state.db)
+    if not df.empty:
+        # Use data editor to allow inline editing of 'Room'
+        edited_df = st.data_editor(df, num_rows="dynamic", key="room_editor")
+        
+        if st.button("변경사항 저장"):
+            # Save back to DB
+            success = st.session_state.db.save_dataframe("Teachers", edited_df)
+            if success:
+                st.success("강의실 배정 정보가 업데이트되었습니다.")
+                st.rerun()
+            else:
+                st.error("저장 실패")
+    else:
+        st.warning("교사 배정 데이터가 없습니다. 'Teacher Assignment'를 먼저 진행하세요.")
+
+elif menu == "Student View":
+    st.header("학생 시간표 조회 및 인쇄")
+    
+    import modules.logic as logic
+    
+    # Check available weeks
+    tt_df = logic.load_timetable(st.session_state.db)
+    available_weeks = [1]
+    if not tt_df.empty and 'Week' in tt_df.columns:
+        available_weeks = sorted(tt_df['Week'].astype(int).unique())
+    
+    # Mode Selection using Tabs
+    tab1, tab2 = st.tabs(["👤 개인별 조회", "🏫 학급별 일괄 조회 (인쇄용)"])
+    
+    with tab1:
+        col_s1, col_s2 = st.columns([3, 1])
+        with col_s1:
+            sid_input = st.text_input("학번을 입력하세요 (예: 10101)")
+        with col_s2:
+            # Week Selector
+            week_opts = ["전체"] + [f"{w}주차" for w in available_weeks]
+            ver_week = st.selectbox("주차 선택", week_opts)
+            
+        if st.button("조회"):
+            if sid_input:
+                target_week = None
+                if ver_week != "전체":
+                    target_week = int(ver_week.replace("주차", ""))
+                    
+                schedule_df, msg, s_name = logic.generate_student_timetable(st.session_state.db, sid_input, week=target_week)
+                
+                if schedule_df is not None and not schedule_df.empty:
+                    st.success(f"학번: {sid_input} 이름: {s_name} 시간표")
+                    
+                    # Transform to Grid (Now returns HTML string with Header)
+                    timetable_html = logic.format_student_timetable_grid(schedule_df, student_info={'id': sid_input, 'name': s_name})
+                    
+                    # Improved Print Button using Components
+                    import streamlit.components.v1 as components
+                    
+                    # CSS for clean print
+                    st.markdown("""
+                    <style>
+                    @media print {
+                        #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
+                        /* Hide Streamlit UI elements */
+                        .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stAlert {display: none !important;}
+                        
+                        /* Hide Tab Headers and Borders */
+                        [data-baseweb="tab-list"], 
+                        [data-baseweb="tab-highlight"], 
+                        [data-baseweb="tab-border"] {
+                            display: none !important; 
+                            border: none !important;
+                            height: 0 !important;
+                        }
+                        hr { display: none !important; }
+
+                        /* Hide Header Decoration Line */
+                        header, .stApp > header {
+                            display: none !important;
+                            opacity: 0 !important;
+                            visibility: hidden !important;
+                        }
+                        header:before, header:after, .stApp > header:before, .stApp > header:after {
+                            display: none !important;
+                            content: none !important;
+                        }
+                        
+                        /* Hide Print Button by hiding the iframe content */
+                        iframe {
+                            display: none !important;
+                            height: 0 !important;
+                            width: 0 !important;
+                        }
+
+                        /* Hide main titles BUT show our custom print title */
+                        h1, h2, h3, h4, h5, h6 {display: none !important;}
+                        h2.print-title {display: block !important;}
+
+                        /* Page Setup */
+                        @page {
+                            size: A4;
+                            margin: 5mm 15mm 5mm 15mm; /* Top Right Bottom Left */
+                        }
+
+                        table {
+                            display: table !important;
+                            width: 100% !important;
+                            border-collapse: collapse !important;
+                        }
+                        th, td {
+                            border: 1px solid #000 !important;
+                            padding: 8px !important;
+                            color: black !important;
+                            -webkit-print-color-adjust: exact; 
+                        }
+                        
+                        html, body, .stApp { 
+                            background-color: white !important; 
+                            height: auto !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            overflow: visible !important;
+                        }
+                        
+                        /* Layout fixes */
+                        .block-container, 
+                        [data-testid="stAppViewContainer"], 
+                        .main, 
+                        .stApp { 
+                            padding: 0 !important; 
+                            margin: 0 !important;
+                            padding-top: 0 !important;
+                            margin-top: 0 !important;
+                            overflow: visible !important;
+                        }
+                        
+                        /* Adjusted positioning for Centering */
+                        #print-area {
+                            /* Flexbox Alignment */
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            display: flex !important;
+                            flex-direction: column;
+                            justify-content: flex-start; /* Align to Top */
+                            align-items: center; /* Center horizontally */
+                            height: 98vh; 
+                            width: 100%;
+                            z-index: 9999;
+                            margin: 0;
+                            padding: 0;
+                        }
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    # Display HTML Table wrapped in print-area
+                    st.markdown(f'<div id="print-area">{timetable_html}</div>', unsafe_allow_html=True)
+
+                    # Print Button
+                    components.html("""
+                    <div style="text-align: center;">
+                        <button onclick="window.parent.print()" style="background-color: #4CAF50; border: none; color: white; padding: 15px 32px; text-align: center; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; font-weight: bold;">🖨️ 시간표 인쇄하기</button>
+                    </div>
+                    """, height=100)
+                    
+                elif schedule_df is None: 
+                    st.warning(msg)
+                else: 
+                    st.info(msg)
+            else:
+                st.error("학번을 입력해주세요.")
+
+    with tab2:
+        st.info("특정 학급의 배정 대상 학생들의 시간표를 한 번에 출력합니다. (학생 1명당 A4 1페이지)")
+        
+        # Select Grade/Class
+        col_g, col_c, col_w = st.columns(3)
+        with col_g:
+            grade_input = st.selectbox("학년", ["1", "2", "3"])
+        with col_c:
+            class_input = st.selectbox("반", [str(i) for i in range(1, 16)]) # 1~15 class
+        with col_w:
+            week_opts_batch = ["전체"] + [f"{w}주차" for w in available_weeks]
+            batch_week_sel = st.selectbox("출력할 주차", week_opts_batch)
+            
+        if st.button("일괄 조회 및 인쇄 미리보기"):
+            targets = logic.get_students_in_class(st.session_state.db, grade_input, class_input)
+            
+            # Filter Week
+            target_week_val = None
+            if batch_week_sel != "전체":
+                target_week_val = int(batch_week_sel.replace("주차", ""))
+            
+            if not targets:
+                st.warning(f"{grade_input}학년 {class_input}반에 최소 성취수준 보장지도 대상 학생이 없습니다.")
+            else:
+                st.success(f"총 {len(targets)}명의 학생 시간표를 생성합니다.")
+                
+                full_html = ""
+                
+                # Progress bar
+                prog_bar = st.progress(0)
+                
+                for idx, student in enumerate(targets):
+                    sid = student['학번']
+                    name = student['이름']
+                    
+                    sch_df, _, _ = logic.generate_student_timetable(st.session_state.db, sid, week=target_week_val)
+                    
+                    # Generate HTML Grid with Header
+                    if sch_df is not None and not sch_df.empty:
+                        t_html = logic.format_student_timetable_grid(sch_df, student_info={'id': sid, 'name': name})
+                    else:
+                        t_html = f"<div style='text-align:center; padding: 20px;'><h3>{name} ({sid})</h3><p>배정된 시간표 없음</p></div>"
+                        
+                    # Wrap with Page Break
+                    full_html += f"""
+<div class="print-page" style="page-break-after: always; box-sizing: border-box;">
+{t_html}
+</div>
+<div class="no-print" style="height: 30px; border-bottom: 1px dashed #ccc; margin-bottom: 30px;"></div>
 """
-    
-    for p in periods:
-        html += f"<tr><td style='border: 1px solid #ddd; font-weight:bold; background-color:#fafafa;'>{p}교시</td>"
-        for d in days:
-            try:
-                cell_content = pivot_df.loc[p, d]
-                if pd.isna(cell_content): cell_content = ""
-            except KeyError:
-                cell_content = ""
-            
-            # Make cell look clickable/interactive or just nice
-            html += f"<td style='padding: 8px; border: 1px solid #ddd; vertical-align: middle; height: 80px;'>{cell_content}</td>"
-        html += "</tr>"
-        
-    html += "</tbody></table>"
-    
-    return header_html + html
+                    prog_bar.progress((idx + 1) / len(targets))
+                    
+                # CSS for Batch Print
+                st.markdown("""
+                <style>
+                @media print {
+                    #MainMenu, header, footer, [data-testid="stSidebar"], .stDeployButton {display: none !important;}
+                    .stTextInput, .stButton, .stExpander, .stSelectbox, .stProgress, .stAlert {display: none !important;}
+                    iframe {display: none !important;} 
+                    .no-print {display: none !important;}
+                    
+                    /* Hide Tab Headers and Borders */
+                    [data-baseweb="tab-list"], 
+                    [data-baseweb="tab-highlight"], 
+                    [data-baseweb="tab-border"] {
+                        display: none !important; 
+                        border: none !important;
+                        height: 0 !important;
+                    }
+                    hr { display: none !important; }
 
+                    /* Hide Header Decoration Line */
+                    header, .stApp > header {
+                        display: none !important;
+                        opacity: 0 !important;
+                        visibility: hidden !important;
+                    }
+                    header:before, header:after, .stApp > header:before, .stApp > header:after {
+                        display: none !important;
+                        content: none !important;
+                    }
+                    
+                    /* Hide Print Button by hiding the iframe content */
+                    iframe {
+                        display: none !important;
+                        height: 0 !important;
+                        width: 0 !important;
+                    }
 
-def get_students_in_class(db_manager, grade, class_num):
-    """
-    Fetches list of students in a specific Grade-Class who need timetables (not exceptioned, has failed items).
-    Returns list of dicts: [{'학번': '...', '이름': '...'}, ...]
-    """
-    students_df = db_manager.load_dataframe("Students")
-    if students_df.empty:
-        return []
-        
-    targets = []
-    # Ensure Types
-    students_df['학년'] = students_df['학년'].astype(str)
-    students_df['반'] = students_df['반'].astype(str)
+                    /* Hide main titles unless it is our custom print title */
+                    h1, h2, h3, h4, h5, h6 {display: none !important;}
+                    h2.print-title {display: block !important;}
+                    
+                    /* Page Setup */
+                    @page {
+                        size: A4;
+                        margin: 5mm 15mm 5mm 15mm; /* Top Right Bottom Left */
+                    }
+                    
+                    table {
+                        display: table !important;
+                        width: 100% !important;
+                        border-collapse: collapse !important;
+                    }
+                    th, td {
+                        border: 1px solid #000 !important;
+                        padding: 8px !important;
+                        color: black !important;
+                        -webkit-print-color-adjust: exact; 
+                    }
+                    html, body, .stApp { 
+                        background-color: white !important; 
+                        height: auto !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: visible !important;
+                    }
+                    
+                    /* Aggressively remove Streamlit container padding */
+                    .block-container, 
+                    [data-testid="stAppViewContainer"], 
+                    [data-testid="stHeader"], 
+                    [data-testid="stToolbar"],
+                    .main,
+                    .stApp {
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        padding-top: 0 !important;
+                        margin-top: 0 !important;
+                        max-width: none !important;
+                    }
+
+                    /* Page Break Control & Alignment */
+                    .print-page {
+                        page-break-after: always;
+                        break-after: page;
+                        page-break-inside: avoid;
+                        display: block; /* Back to block for natural flow */
+                        padding-top: 0px; 
+                        margin-top: 0px;
+                        box-sizing: border-box;
+                    }
+
+                    /* Formatting for print area */
+                    #print-area {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        display: block;
+                        width: 100%;
+                        z-index: 9999;
+                        margin: 0;
+                        padding: 0;
+                    }
+                }
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # Display Full HTML (Timetables) -> Wrapped in #print-area
+                st.markdown(f'<div id="print-area">{full_html}</div>', unsafe_allow_html=True)
+
+                # Print Button (Placed at BOTTOM)
+                import streamlit.components.v1 as components
+                components.html(f"""
+                <div style="text-align: center;">
+                    <button onclick="window.parent.print()" style="background-color: #2196F3; border: none; color: white; padding: 15px 32px; text-align: center; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px; font-weight: bold;">🏫 일괄 인쇄하기 ({len(targets)}명)</button>
+                </div>
+                """, height=100)
+
+elif menu == "Teacher View":
+    st.header("교사별 시간표 조회")
     
-    grade = str(grade)
-    class_num = str(class_num)
+    import modules.logic as logic
     
-    for _, row in students_df.iterrows():
-        # Check Grade/Class
-        if row['학년'] != grade or row['반'] != class_num:
-            continue
-            
-        # Check Exception
-        is_exc = row.get('is_exception')
-        if is_exc == True or str(is_exc).upper() == 'TRUE':
-             continue
-             
-        # Check parsed_subjects (if empty, no need for timetable)
-        sub_str = str(row.get('parsed_subjects', ''))
-        failed_subjects = [s.strip() for s in sub_str.split(',') if s.strip()]
+    teachers_df = logic.get_teacher_assignments(st.session_state.db)
+    if not teachers_df.empty:
+        teacher_list = teachers_df['TeacherName'].unique()
+        selected_teacher = st.selectbox("교사 선택", teacher_list)
         
-        if not failed_subjects:
-            continue
-            
-        targets.append({
-            '학번': row['학번'],
-            '이름': row['이름']
-        })
-        
-    # Sort by Student ID
-    targets.sort(key=lambda x: x['학번'])
-    
-    return targets
+        if selected_teacher:
+            st.subheader(f"{selected_teacher} 선생님 시간표")
+            t_schedule = logic.get_teacher_schedule(st.session_state.db, selected_teacher)
+            if not t_schedule.empty:
+                st.table(t_schedule)
+                
+                slot_options = t_schedule.apply(lambda x: f"{x['Day']} {x['Period']}교시 ({x['Subject']})", axis=1)
+                selected_slot_str = st.selectbox("수강생 명단 조회할 수업 선택", slot_options)
+                
+                # Parse back
+                if selected_slot_str:
+                    # Format: "월 5교시 (Subject)"
+                    try:
+                        # Simple regex or split
+                        parts = selected_slot_str.split(' ')
+                        # parts[0] = Day, parts[1] = "5교시", parts[2] = "(Subject)"
+                        sel_day = parts[0]
+                        sel_period = parts[1].replace("교시", "")
+                        sel_subject = selected_slot_str.split('(')[1].replace(')', '')
+                        
+                        from modules.logic import get_students_for_class_slot
+                        stud_df = logic.get_students_for_class_slot(st.session_state.db, selected_teacher, sel_subject)
+                        
+                        st.write(f"**[{sel_subject}] 수강 대상 학생 명단**")
+                        if not stud_df.empty:
+                            st.dataframe(stud_df)
+                            st.caption(f"총 {len(stud_df)}명")
+                        else:
+                            st.info("해당 수업을 듣는 학생이 없습니다.")
+                    except Exception as e:
+                        st.error(f"명단 조회 중 오류 발생: {e}")
+            else:
+                st.info("배정된 시간표가 없습니다.")
+    else:
+        st.warning("교사 데이터가 없습니다.")
