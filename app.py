@@ -94,7 +94,7 @@ if mode != "share":
     if st.sidebar.button("🔗 시간표 공유하기 (Share Link)"):
         share_modal()
     
-    st.sidebar.divider()
+
 
 if st.sidebar.button("🔄 데이터 새로고침 (Refresh)"):
     # Clear internal cache if exists
